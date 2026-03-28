@@ -59,13 +59,13 @@ export default function OverviewPage() {
         <Card title="LLM Provider">
           {router ? (
             <div className="space-y-1">
-              <div className="text-xl font-bold capitalize">{router.default_provider}</div>
+              <div className="text-xl font-bold capitalize">{router.active_provider}</div>
               <div className="text-xs text-dash-muted">
                 {router.providers.filter((p) => p.available).length} provider(s) online
               </div>
               <Badge
-                text={router.memory_status}
-                variant={router.memory_status === "normal" ? "success" : "warning"}
+                text={router.memory_ok ? "memory ok" : "memory critical"}
+                variant={router.memory_ok ? "success" : "warning"}
               />
             </div>
           ) : (
@@ -99,21 +99,35 @@ export default function OverviewPage() {
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
             <div>
               <span className="text-dash-muted">Platform</span>
-              <p className="font-medium">{health.platform}</p>
+              <p className="font-medium">{health.platform.os}</p>
             </div>
             <div>
               <span className="text-dash-muted">Architecture</span>
-              <p className="font-medium">{health.architecture}</p>
+              <p className="font-medium">{health.platform.arch}</p>
             </div>
             <div>
               <span className="text-dash-muted">Python</span>
-              <p className="font-medium">{health.python_version}</p>
+              <p className="font-medium">{health.platform.python}</p>
             </div>
             <div>
               <span className="text-dash-muted">Total Memory</span>
               <p className="font-medium">{health.memory.total_gb.toFixed(1)} GB</p>
             </div>
           </div>
+        </Card>
+      )}
+
+      {/* Ollama Status */}
+      {health && (
+        <Card title="Ollama">
+          <div className="flex items-center gap-3">
+            <div className={`w-2.5 h-2.5 rounded-full ${health.ollama.reachable ? "bg-dash-success" : "bg-dash-error"}`} />
+            <span className="font-medium">{health.ollama.reachable ? "Connected" : "Offline"}</span>
+            <span className="text-sm text-dash-muted ml-2">{health.ollama.url}</span>
+          </div>
+          {!health.ollama.reachable && (
+            <p className="text-sm text-dash-muted mt-2">{health.ollama.detail}</p>
+          )}
         </Card>
       )}
 
@@ -128,7 +142,7 @@ export default function OverviewPage() {
                   <span className="font-medium capitalize">{p.name}</span>
                 </div>
                 <div className="text-sm text-dash-muted">
-                  {p.available ? `${p.models.length} model(s)` : p.error || "Offline"}
+                  {p.available ? `${p.models_count} model(s)` : p.detail || "Offline"}
                 </div>
               </div>
             ))}

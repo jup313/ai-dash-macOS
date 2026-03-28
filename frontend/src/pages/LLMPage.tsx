@@ -26,33 +26,25 @@ export default function LLMPage() {
       {router && (
         <>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <Card title="Default Provider">
-              <div className="text-xl font-bold capitalize">{router.default_provider}</div>
+            <Card title="Active Provider">
+              <div className="text-xl font-bold capitalize">{router.active_provider}</div>
             </Card>
             <Card title="Memory Gate">
               <Badge
-                text={router.memory_status}
-                variant={
-                  router.memory_status === "normal"
-                    ? "success"
-                    : router.memory_status === "warning"
-                      ? "warning"
-                      : "error"
-                }
+                text={router.memory_ok ? "OK — All clear" : "Critical — Blocked"}
+                variant={router.memory_ok ? "success" : "error"}
               />
               <p className="text-xs text-dash-muted mt-2">
-                {router.memory_status === "normal"
+                {router.memory_ok
                   ? "All providers available"
-                  : router.memory_status === "warning"
-                    ? "Large models restricted"
-                    : "LLM requests blocked"}
+                  : "LLM requests may be restricted due to memory pressure"}
               </p>
             </Card>
-            <Card title="Providers">
+            <Card title="Models">
               <Stat
-                label="online"
-                value={router.providers.filter((p) => p.available).length}
-                color="text-dash-success"
+                label="total available"
+                value={router.total_models}
+                color={router.total_models > 0 ? "text-dash-success" : "text-dash-muted"}
               />
             </Card>
           </div>
@@ -82,45 +74,20 @@ export default function LLMPage() {
                     />
                   </div>
 
-                  {provider.error && (
-                    <p className="text-sm text-dash-error mb-3">{provider.error}</p>
-                  )}
-
-                  {provider.available && provider.models.length > 0 ? (
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-sm">
-                        <thead>
-                          <tr className="text-left text-dash-muted border-b border-dash-border">
-                            <th className="pb-2 font-medium">Model</th>
-                            <th className="pb-2 font-medium">Size</th>
-                            <th className="pb-2 font-medium">Modified</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {provider.models.map((model) => (
-                            <tr
-                              key={model.name}
-                              className="border-b border-dash-border/50 last:border-0"
-                            >
-                              <td className="py-2 font-medium text-dash-text">
-                                {model.name}
-                              </td>
-                              <td className="py-2 text-dash-muted">
-                                {model.size ?? "—"}
-                              </td>
-                              <td className="py-2 text-dash-muted">
-                                {model.modified_at
-                                  ? new Date(model.modified_at).toLocaleDateString()
-                                  : "—"}
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
+                  <div className="grid grid-cols-2 gap-4 text-sm">
+                    <div>
+                      <span className="text-dash-muted">Models</span>
+                      <p className="font-medium">{provider.models_count}</p>
                     </div>
-                  ) : provider.available ? (
-                    <p className="text-sm text-dash-muted">No models loaded</p>
-                  ) : null}
+                    <div>
+                      <span className="text-dash-muted">Default Model</span>
+                      <p className="font-medium">{provider.default_model || "—"}</p>
+                    </div>
+                  </div>
+
+                  {provider.detail && (
+                    <p className="text-sm text-dash-muted mt-3">{provider.detail}</p>
+                  )}
                 </div>
               ))}
             </div>

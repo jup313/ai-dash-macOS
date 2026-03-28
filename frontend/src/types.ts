@@ -4,11 +4,18 @@
 
 export interface HealthResponse {
   status: string;
-  platform: string;
-  architecture: string;
-  python_version: string;
-  provider: string;
+  version: string;
+  platform: PlatformInfo;
   memory: MemoryInfo;
+  ollama: OllamaInfo;
+  config: ConfigInfo;
+}
+
+export interface PlatformInfo {
+  arch: string;
+  os: string;
+  python: string;
+  rosetta: boolean;
 }
 
 export interface MemoryInfo {
@@ -17,6 +24,23 @@ export interface MemoryInfo {
   available_gb: number;
   percent_used: number;
   status: string;
+  heavy_model_allowed: boolean;
+  swap_used_gb: number;
+  swap_total_gb: number;
+}
+
+export interface OllamaInfo {
+  reachable: boolean;
+  url: string;
+  detail: string;
+}
+
+export interface ConfigInfo {
+  loaded: boolean;
+  provider: string;
+  allow_remote: boolean;
+  max_heavy_models: number;
+  max_agent_concurrency: number;
 }
 
 // ── LLM ───────────────────────────────────────────────────────────────────────
@@ -31,14 +55,16 @@ export interface ModelInfo {
 export interface ProviderStatus {
   name: string;
   available: boolean;
-  models: ModelInfo[];
-  error?: string;
+  models_count: number;
+  default_model: string;
+  detail?: string;
 }
 
 export interface RouterStatus {
-  default_provider: string;
+  active_provider: string;
   providers: ProviderStatus[];
-  memory_status: string;
+  memory_ok: boolean;
+  total_models: number;
 }
 
 // ── Agents ────────────────────────────────────────────────────────────────────
@@ -105,6 +131,7 @@ export interface FileInfo {
   size_bytes: number;
   is_directory: boolean;
   language: string;
+  modified_at?: string;
 }
 
 // ── Memory Stats ──────────────────────────────────────────────────────────────
@@ -112,5 +139,5 @@ export interface FileInfo {
 export interface MemoryStats {
   total_conversations: number;
   total_messages: number;
-  max_conversations: number;
+  total_tokens: number;
 }

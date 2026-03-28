@@ -40,7 +40,7 @@ export default function AgentsPage() {
             <Stat label="runs" value={executor.total_failed} color="text-dash-error" />
           </Card>
           <Card title="Conversations">
-            <Stat label={`of ${memStats?.max_conversations ?? "?"} max`} value={memStats?.total_conversations ?? 0} />
+            <Stat label="active" value={memStats?.total_conversations ?? 0} />
           </Card>
         </div>
       )}
@@ -133,7 +133,7 @@ export default function AgentsPage() {
           <div className="grid grid-cols-3 gap-4">
             <Stat label="conversations" value={memStats.total_conversations} />
             <Stat label="messages" value={memStats.total_messages} />
-            <Stat label="max capacity" value={memStats.max_conversations} />
+            <Stat label="tokens" value={memStats.total_tokens} />
           </div>
         </Card>
       )}
