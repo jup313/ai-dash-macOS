@@ -30,7 +30,7 @@ class Settings(BaseSettings):
         description="Ollama API base URL",
     )
     ollama_model: str = Field(
-        default="llama3:8b",
+        default="llama3.1:latest",
         description="Default Ollama model",
     )
 

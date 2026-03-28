@@ -55,7 +55,7 @@ class MemoryMetrics:
 # Thresholds for 28GB unified memory system
 MEMORY_WARNING_THRESHOLD = 65.0  # percent
 MEMORY_CRITICAL_THRESHOLD = 75.0  # percent
-HEAVY_MODEL_BLOCK_THRESHOLD = 75.0  # percent — block heavy model load above this
+HEAVY_MODEL_BLOCK_THRESHOLD = 90.0  # percent — block heavy model load above this
 
 # Approximate model sizes for memory budgeting
 MODEL_SIZE_ESTIMATES_GB = {

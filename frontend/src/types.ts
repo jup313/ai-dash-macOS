@@ -153,3 +153,38 @@ export interface MemoryStats {
   total_messages: number;
   total_tokens: number;
 }
+
+// ── Chat ──────────────────────────────────────────────────────────────────────
+
+export interface ChatMessageRequest {
+  content: string;
+  agent?: string;
+  model?: string;
+  provider?: string;
+  stream?: boolean;
+}
+
+export interface ChatMessageResponse {
+  content: string;
+  model: string;
+  provider: string;
+  usage?: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number };
+  conversation_id: string;
+}
+
+export interface ConversationMessage {
+  message_id: string;
+  role: string;
+  content: string;
+  timestamp: string;
+  tokens_used?: number;
+}
+
+export interface ConversationDetail {
+  conversation_id: string;
+  title: string;
+  agent_name: string;
+  messages: ConversationMessage[];
+  created_at: string;
+  updated_at: string;
+}

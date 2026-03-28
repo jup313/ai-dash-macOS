@@ -2,6 +2,10 @@
 
 import type {
   AgentInfo,
+  ChatMessageRequest,
+  ChatMessageResponse,
+  ConversationDetail,
+  ConversationMessage,
   ConversationSummary,
   ExecutorStatus,
   FileInfo,
@@ -56,6 +60,95 @@ export const fetchExecutorStatus = () => get<ExecutorStatus>("/api/agents/status
 
 export const fetchConversations = () => get<ConversationSummary[]>("/api/conversations/");
 export const fetchMemoryStats = () => get<MemoryStats>("/api/conversations/stats");
+export const fetchConversation = (id: string) => get<ConversationDetail>(`/api/conversations/${id}`);
+export const fetchMessages = (id: string, limit?: number) =>
+  get<ConversationMessage[]>(`/api/conversations/${id}/messages${limit ? `?limit=${limit}` : ""}`);
+
+export async function createConversation(title: string, agent_name = "chat"): Promise<ConversationDetail> {
+  const res = await fetch(`${BASE}/api/conversations/`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ title, agent_name }),
+  });
+  if (!res.ok) throw new Error(`Create conversation: ${res.status}`);
+  return res.json() as Promise<ConversationDetail>;
+}
+
+export async function deleteConversation(id: string): Promise<void> {
+  const res = await fetch(`${BASE}/api/conversations/${id}`, { method: "DELETE" });
+  if (!res.ok) throw new Error(`Delete conversation: ${res.status}`);
+}
+
+export async function sendChatMessage(
+  conversationId: string,
+  request: ChatMessageRequest,
+): Promise<ChatMessageResponse> {
+  const res = await fetch(`${BASE}/api/conversations/${conversationId}/chat`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(request),
+  });
+  if (!res.ok) {
+    const detail = await res.text();
+    throw new Error(`Chat error: ${res.status} ${detail}`);
+  }
+  return res.json() as Promise<ChatMessageResponse>;
+}
+
+export function streamChatMessage(
+  conversationId: string,
+  request: ChatMessageRequest,
+  onChunk: (text: string) => void,
+  onDone: () => void,
+  onError: (err: Error) => void,
+): AbortController {
+  const controller = new AbortController();
+  const body = JSON.stringify({ ...request, stream: true });
+
+  fetch(`${BASE}/api/conversations/${conversationId}/chat`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body,
+    signal: controller.signal,
+  })
+    .then(async (res) => {
+      if (!res.ok) {
+        const detail = await res.text();
+        throw new Error(`Stream error: ${res.status} ${detail}`);
+      }
+      const reader = res.body?.getReader();
+      if (!reader) throw new Error("No response body");
+      const decoder = new TextDecoder();
+      let buffer = "";
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() || "";
+        for (const line of lines) {
+          if (line.startsWith("data: ")) {
+            const data = line.slice(6).trim();
+            if (data === "[DONE]") {
+              onDone();
+              return;
+            }
+            try {
+              const parsed = JSON.parse(data);
+              if (parsed.content) onChunk(parsed.content);
+              if (parsed.done) { onDone(); return; }
+            } catch { /* skip parse errors */ }
+          }
+        }
+      }
+      onDone();
+    })
+    .catch((err) => {
+      if (err.name !== "AbortError") onError(err);
+    });
+
+  return controller;
+}
 
 // ── Automation ────────────────────────────────────────────────────────────────
 

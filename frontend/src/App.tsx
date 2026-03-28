@@ -1,6 +1,7 @@
 import { Routes, Route, Navigate } from "react-router-dom";
 import Layout from "./components/Layout";
 import OverviewPage from "./pages/OverviewPage";
+import ChatPage from "./pages/ChatPage";
 import LLMPage from "./pages/LLMPage";
 import AgentsPage from "./pages/AgentsPage";
 import CodingPage from "./pages/CodingPage";
@@ -11,6 +12,7 @@ export default function App() {
     <Routes>
       <Route element={<Layout />}>
         <Route path="/" element={<OverviewPage />} />
+        <Route path="/chat" element={<ChatPage />} />
         <Route path="/llm" element={<LLMPage />} />
         <Route path="/agents" element={<AgentsPage />} />
         <Route path="/coding" element={<CodingPage />} />
