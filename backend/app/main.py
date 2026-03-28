@@ -13,10 +13,15 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from backend.app.api.agents import router as agents_router
+from backend.app.api.conversations import router as conversations_router
 from backend.app.api.health import router as health_router
 from backend.app.api.llm import router as llm_router
+from backend.app.agents.executor import reset_executor
+from backend.app.agents.registry import reset_registry
 from backend.app.core.config import get_settings
 from backend.app.llm.router import reset_router
+from backend.app.memory.store import reset_store
 
 logger = logging.getLogger(__name__)
 
@@ -35,6 +40,9 @@ async def lifespan(application: FastAPI):
     logger.info("Remote models: %s", settings.allow_remote_models)
     yield
     reset_router()
+    reset_registry()
+    reset_executor()
+    reset_store()
     logger.info("ai-dash-macOS shutting down")
 
 
@@ -66,6 +74,8 @@ def create_app() -> FastAPI:
     # Register routers
     application.include_router(health_router, tags=["health"])
     application.include_router(llm_router)
+    application.include_router(agents_router)
+    application.include_router(conversations_router)
 
     return application
 
