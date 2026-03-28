@@ -14,7 +14,9 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from backend.app.api.health import router as health_router
+from backend.app.api.llm import router as llm_router
 from backend.app.core.config import get_settings
+from backend.app.llm.router import reset_router
 
 logger = logging.getLogger(__name__)
 
@@ -32,6 +34,7 @@ async def lifespan(application: FastAPI):
     logger.info("Ollama URL: %s", settings.ollama_base_url)
     logger.info("Remote models: %s", settings.allow_remote_models)
     yield
+    reset_router()
     logger.info("ai-dash-macOS shutting down")
 
 
@@ -62,6 +65,7 @@ def create_app() -> FastAPI:
 
     # Register routers
     application.include_router(health_router, tags=["health"])
+    application.include_router(llm_router)
 
     return application
 
