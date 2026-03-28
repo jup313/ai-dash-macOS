@@ -14,12 +14,15 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from backend.app.api.agents import router as agents_router
+from backend.app.api.automation import router as automation_router
 from backend.app.api.coding import router as coding_router
 from backend.app.api.conversations import router as conversations_router
 from backend.app.api.health import router as health_router
 from backend.app.api.llm import router as llm_router
 from backend.app.agents.executor import reset_executor
 from backend.app.agents.registry import reset_registry
+from backend.app.automation.engine import reset_engine
+from backend.app.automation.scheduler import get_scheduler, reset_scheduler
 from backend.app.coding.file_manager import reset_file_manager
 from backend.app.core.config import get_settings
 from backend.app.llm.router import reset_router
@@ -41,6 +44,11 @@ async def lifespan(application: FastAPI):
     logger.info("Ollama URL: %s", settings.ollama_base_url)
     logger.info("Remote models: %s", settings.allow_remote_models)
     yield
+    # Shutdown scheduler first (cancels background tasks)
+    scheduler = get_scheduler()
+    await scheduler.shutdown()
+    reset_scheduler()
+    reset_engine()
     reset_router()
     reset_registry()
     reset_executor()
@@ -80,6 +88,7 @@ def create_app() -> FastAPI:
     application.include_router(agents_router)
     application.include_router(conversations_router)
     application.include_router(coding_router)
+    application.include_router(automation_router)
 
     return application
 
