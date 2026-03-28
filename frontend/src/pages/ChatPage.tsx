@@ -4,6 +4,7 @@ import {
   fetchMessages,
   fetchAgents,
   fetchLLMConfig,
+  fetchModels,
   createConversation,
   deleteConversation,
   sendChatMessage,
@@ -14,6 +15,7 @@ import type {
   ConversationSummary,
   ConversationMessage,
   LLMConfig,
+  ModelInfo,
 } from "../types";
 
 export default function ChatPage() {
@@ -32,6 +34,9 @@ export default function ChatPage() {
 
   // Settings
   const [selectedAgent, setSelectedAgent] = useState("chat");
+  const [selectedModel, setSelectedModel] = useState("");
+  const [availableModels, setAvailableModels] = useState<ModelInfo[]>([]);
+  const [loadingModels, setLoadingModels] = useState(false);
   const [useStreaming, setUseStreaming] = useState(true);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -42,8 +47,25 @@ export default function ChatPage() {
   useEffect(() => {
     fetchConversations().then(setConversations).catch(() => {});
     fetchAgents().then(setAgents).catch(() => {});
-    fetchLLMConfig().then(setLlmConfig).catch(() => {});
+    fetchLLMConfig()
+      .then((cfg) => {
+        setLlmConfig(cfg);
+        setSelectedModel(
+          cfg.active_provider === "ollama" ? cfg.ollama_model : cfg.openai_model
+        );
+      })
+      .catch(() => {});
   }, []);
+
+  // Fetch available models when config loads
+  useEffect(() => {
+    if (!llmConfig) return;
+    setLoadingModels(true);
+    fetchModels(llmConfig.active_provider)
+      .then((models) => setAvailableModels(models))
+      .catch(() => setAvailableModels([]))
+      .finally(() => setLoadingModels(false));
+  }, [llmConfig]);
 
   // Load messages when active conversation changes
   useEffect(() => {
@@ -112,7 +134,7 @@ export default function ChatPage() {
         setStreamingText("");
         const controller = streamChatMessage(
           activeConvId,
-          { content: userMessage, agent: selectedAgent },
+          { content: userMessage, agent: selectedAgent, model: selectedModel || undefined },
           (chunk) => setStreamingText((prev) => prev + chunk),
           () => {
             // On done — reload messages from server to get full state
@@ -133,6 +155,7 @@ export default function ChatPage() {
         await sendChatMessage(activeConvId, {
           content: userMessage,
           agent: selectedAgent,
+          model: selectedModel || undefined,
         });
         // Reload messages
         const updated = await fetchMessages(activeConvId);
@@ -171,7 +194,8 @@ export default function ChatPage() {
         </button>
 
         {/* Agent selector */}
-        <div className="mb-3">
+        <div className="mb-2">
+          <label className="block text-[10px] text-dash-muted mb-1 px-1">Agent</label>
           <select
             value={selectedAgent}
             onChange={(e) => setSelectedAgent(e.target.value)}
@@ -183,6 +207,41 @@ export default function ChatPage() {
               </option>
             ))}
           </select>
+        </div>
+
+        {/* Model selector */}
+        <div className="mb-3">
+          <label className="block text-[10px] text-dash-muted mb-1 px-1">
+            Model
+            {loadingModels && <span className="ml-1 animate-pulse">detecting…</span>}
+            {!loadingModels && availableModels.length > 0 && (
+              <span className="ml-1 text-dash-success">({availableModels.length})</span>
+            )}
+          </label>
+          {availableModels.length > 0 ? (
+            <select
+              value={selectedModel}
+              onChange={(e) => setSelectedModel(e.target.value)}
+              className="w-full bg-dash-surface border border-dash-border rounded-lg px-3 py-2 text-xs text-dash-text focus:outline-none focus:border-dash-accent"
+            >
+              {availableModels.map((m) => (
+                <option key={m.name} value={m.name}>
+                  {m.name}
+                </option>
+              ))}
+              {selectedModel && !availableModels.some((m) => m.name === selectedModel) && (
+                <option value={selectedModel}>{selectedModel} (current)</option>
+              )}
+            </select>
+          ) : (
+            <input
+              type="text"
+              value={selectedModel}
+              onChange={(e) => setSelectedModel(e.target.value)}
+              placeholder="e.g. llama3.1:latest"
+              className="w-full bg-dash-surface border border-dash-border rounded-lg px-3 py-2 text-xs text-dash-text placeholder:text-dash-muted/50 focus:outline-none focus:border-dash-accent"
+            />
+          )}
         </div>
 
         {/* Streaming toggle */}
