@@ -146,6 +146,43 @@ export interface FileInfo {
   modified_at?: string;
 }
 
+// ── n8n ───────────────────────────────────────────────────────────────────────
+
+export interface N8nStatus {
+  enabled: boolean;
+  connected: boolean;
+  url: string;
+  workflow_count?: number;
+  active_workflows?: number;
+  detail: string;
+}
+
+export interface N8nWorkflow {
+  id: string;
+  name: string;
+  active: boolean;
+  tags: string[];
+  nodes_count: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface N8nExecution {
+  id: string;
+  workflow_id: string;
+  workflow_name: string;
+  status: string;
+  started_at: string;
+  finished_at: string;
+  mode: string;
+}
+
+export interface N8nConfig {
+  n8n_url: string;
+  n8n_enabled: boolean;
+  has_api_key: boolean;
+}
+
 // ── Memory Stats ──────────────────────────────────────────────────────────────
 
 export interface MemoryStats {

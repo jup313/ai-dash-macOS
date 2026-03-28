@@ -54,6 +54,20 @@ class Settings(BaseSettings):
         description="Anthropic API key",
     )
 
+    # n8n Automation Configuration
+    n8n_url: str = Field(
+        default="http://localhost:5678",
+        description="n8n instance URL",
+    )
+    n8n_api_key: str = Field(
+        default="",
+        description="n8n API key for authentication",
+    )
+    n8n_enabled: bool = Field(
+        default=False,
+        description="Enable n8n integration",
+    )
+
     # Resource Limits
     max_heavy_models: int = Field(
         default=1,

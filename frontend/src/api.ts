@@ -14,6 +14,10 @@ import type {
   LLMConfigUpdate,
   MemoryStats,
   ModelInfo,
+  N8nConfig,
+  N8nExecution,
+  N8nStatus,
+  N8nWorkflow,
   RouterStatus,
   SchedulerStatus,
   WorkflowInfo,
@@ -154,6 +158,49 @@ export function streamChatMessage(
 
 export const fetchWorkflows = () => get<WorkflowInfo[]>("/api/automation/workflows");
 export const fetchSchedulerStatus = () => get<SchedulerStatus>("/api/automation/scheduler/status");
+
+// ── n8n Integration ──────────────────────────────────────────────────────────
+
+export const fetchN8nStatus = () => get<N8nStatus>("/api/automation/n8n/status");
+export const fetchN8nWorkflows = () => get<N8nWorkflow[]>("/api/automation/n8n/workflows");
+export const fetchN8nExecutions = (limit = 20) =>
+  get<N8nExecution[]>(`/api/automation/n8n/executions?limit=${limit}`);
+
+export async function activateN8nWorkflow(id: string): Promise<{ status: string }> {
+  const res = await fetch(`${BASE}/api/automation/n8n/workflows/${id}/activate`, { method: "POST" });
+  if (!res.ok) throw new Error(`Activate n8n workflow: ${res.status}`);
+  return res.json();
+}
+
+export async function deactivateN8nWorkflow(id: string): Promise<{ status: string }> {
+  const res = await fetch(`${BASE}/api/automation/n8n/workflows/${id}/deactivate`, { method: "POST" });
+  if (!res.ok) throw new Error(`Deactivate n8n workflow: ${res.status}`);
+  return res.json();
+}
+
+export async function executeN8nWorkflow(id: string, data?: Record<string, unknown>): Promise<{ execution_id: string }> {
+  const res = await fetch(`${BASE}/api/automation/n8n/workflows/${id}/execute`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data ?? {}),
+  });
+  if (!res.ok) throw new Error(`Execute n8n workflow: ${res.status}`);
+  return res.json();
+}
+
+export async function updateN8nConfig(config: {
+  n8n_url?: string;
+  n8n_api_key?: string;
+  n8n_enabled?: boolean;
+}): Promise<N8nConfig> {
+  const res = await fetch(`${BASE}/api/automation/n8n/config`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(config),
+  });
+  if (!res.ok) throw new Error(`Update n8n config: ${res.status}`);
+  return res.json();
+}
 
 // ── Coding ────────────────────────────────────────────────────────────────────
 
