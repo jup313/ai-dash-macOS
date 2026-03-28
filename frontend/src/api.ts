@@ -6,6 +6,8 @@ import type {
   ExecutorStatus,
   FileInfo,
   HealthResponse,
+  LLMConfig,
+  LLMConfigUpdate,
   MemoryStats,
   RouterStatus,
   SchedulerStatus,
@@ -27,6 +29,20 @@ export const fetchHealth = () => get<HealthResponse>("/health");
 // ── LLM ───────────────────────────────────────────────────────────────────────
 
 export const fetchRouterStatus = () => get<RouterStatus>("/api/llm/status");
+export const fetchLLMConfig = () => get<LLMConfig>("/api/llm/config");
+
+export async function updateLLMConfig(update: LLMConfigUpdate): Promise<LLMConfig> {
+  const res = await fetch(`${BASE}/api/llm/config`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(update),
+  });
+  if (!res.ok) {
+    const detail = await res.text();
+    throw new Error(`PUT /api/llm/config: ${res.status} ${detail}`);
+  }
+  return res.json() as Promise<LLMConfig>;
+}
 
 // ── Agents ────────────────────────────────────────────────────────────────────
 

@@ -17,6 +17,8 @@ from backend.app.llm.base import BaseLLMAdapter, ProviderError, ProviderUnavaila
 from backend.app.llm.models import (
     ChatRequest,
     ChatResponse,
+    LLMConfig,
+    LLMConfigUpdate,
     ModelInfo,
     ProviderStatus,
     RouterStatus,
@@ -227,6 +229,71 @@ class LLMRouter:
         await self.initialize()
         adapter = self._get_adapter(provider)
         return await adapter.check_availability()
+
+    async def switch_provider(self, provider: str) -> None:
+        """
+        Switch the active default provider at runtime.
+
+        If the provider adapter isn't initialized yet, create it.
+        """
+        await self.initialize()
+
+        provider = provider.lower()
+        if provider not in PROVIDER_REGISTRY:
+            raise ProviderError(
+                provider,
+                f"Unknown provider '{provider}'. Known: {list(PROVIDER_REGISTRY.keys())}",
+            )
+
+        # Lazy-init the adapter if not yet created
+        if provider not in self._adapters:
+            self._adapters[provider] = PROVIDER_REGISTRY[provider]()
+
+        self._default_provider = provider
+        logger.info("Switched default provider to: %s", provider)
+
+    async def set_model(self, model: str) -> None:
+        """
+        Set the default model for the current active provider at runtime.
+        """
+        await self.initialize()
+
+        adapter = self._get_adapter()
+        # Update the adapter's internal default model
+        if hasattr(adapter, "_default_model"):
+            adapter._default_model = model
+            logger.info("Set default model for %s to: %s", adapter.provider_name, model)
+        else:
+            raise ProviderError(
+                adapter.provider_name,
+                "This provider does not support runtime model switching.",
+            )
+
+    async def get_config(self) -> LLMConfig:
+        """Get current LLM configuration."""
+        await self.initialize()
+
+        ollama_model = ""
+        openai_model = ""
+        if "ollama" in self._adapters:
+            ollama_model = await self._adapters["ollama"].get_default_model()
+        if "openai" in self._adapters:
+            openai_model = await self._adapters["openai"].get_default_model()
+
+        return LLMConfig(
+            active_provider=self._default_provider,
+            ollama_model=ollama_model,
+            openai_model=openai_model,
+            available_providers=list(self._adapters.keys()),
+        )
+
+    async def update_config(self, update: LLMConfigUpdate) -> LLMConfig:
+        """Apply a configuration update and return the new config."""
+        if update.provider:
+            await self.switch_provider(update.provider)
+        if update.model:
+            await self.set_model(update.model)
+        return await self.get_config()
 
     @property
     def available_providers(self) -> list[str]:

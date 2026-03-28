@@ -67,6 +67,18 @@ export interface RouterStatus {
   total_models: number;
 }
 
+export interface LLMConfigUpdate {
+  provider?: string;
+  model?: string;
+}
+
+export interface LLMConfig {
+  active_provider: string;
+  ollama_model: string;
+  openai_model: string;
+  available_providers: string[];
+}
+
 // ── Agents ────────────────────────────────────────────────────────────────────
 
 export interface AgentInfo {

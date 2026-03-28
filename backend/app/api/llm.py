@@ -13,7 +13,7 @@ from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
 
 from backend.app.llm.base import ProviderError, ProviderUnavailableError
-from backend.app.llm.models import ChatRequest, ChatResponse, ModelInfo, RouterStatus
+from backend.app.llm.models import ChatRequest, ChatResponse, LLMConfig, LLMConfigUpdate, ModelInfo, RouterStatus
 from backend.app.llm.router import get_router
 from backend.app.llm.streaming import stream_to_sse
 
@@ -104,6 +104,34 @@ async def router_status() -> RouterStatus:
         return await llm_router.get_status()
     except Exception as exc:
         logger.error("Status error: %s", exc, exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Internal error: {exc}") from exc
+
+
+@router.get("/config", response_model=LLMConfig)
+async def get_config() -> LLMConfig:
+    """Get current LLM configuration (active provider, models)."""
+    try:
+        llm_router = get_router()
+        return await llm_router.get_config()
+    except Exception as exc:
+        logger.error("Get config error: %s", exc, exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Internal error: {exc}") from exc
+
+
+@router.put("/config", response_model=LLMConfig)
+async def update_config(update: LLMConfigUpdate) -> LLMConfig:
+    """
+    Update LLM configuration at runtime.
+
+    Switch provider and/or change default model without restarting.
+    """
+    try:
+        llm_router = get_router()
+        return await llm_router.update_config(update)
+    except ProviderError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:
+        logger.error("Update config error: %s", exc, exc_info=True)
         raise HTTPException(status_code=500, detail=f"Internal error: {exc}") from exc
 
 

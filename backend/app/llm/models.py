@@ -165,3 +165,25 @@ class RouterStatus(BaseModel):
     providers: list[ProviderStatus]
     memory_ok: bool
     total_models: int
+
+
+class LLMConfigUpdate(BaseModel):
+    """Request to update LLM configuration at runtime."""
+
+    provider: Optional[str] = Field(
+        default=None,
+        description="Switch active provider (ollama, openai, anthropic)",
+    )
+    model: Optional[str] = Field(
+        default=None,
+        description="Set default model for the active provider",
+    )
+
+
+class LLMConfig(BaseModel):
+    """Current LLM configuration."""
+
+    active_provider: str
+    ollama_model: str
+    openai_model: str
+    available_providers: list[str]
