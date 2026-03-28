@@ -1,0 +1,73 @@
+# ai-dash-macOS CI Pipeline
+# Runs on macOS ARM64 runners when available, falls back to macos-latest
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: macos-latest
+    strategy:
+      matrix:
+        python-version: ["3.11", "3.12"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Verify architecture
+        run: |
+          echo "Architecture: $(uname -m)"
+          python3 -c "import platform; print(f'Python arch: {platform.machine()}')"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Set up environment
+        run: |
+          cp .env.example .env
+
+      - name: Run tests
+        run: |
+          pytest backend/tests/ -v --tb=short
+
+      - name: Check import structure
+        run: |
+          python -c "from backend.app.core.config import get_settings; print('Config OK')"
+          python -c "from backend.app.core.validation import run_sync_checks; print('Validation OK')"
+          python -c "from backend.app.core.memory import get_memory_metrics; print('Memory OK')"
+          python -c "from backend.app.main import app; print('App OK')"
+
+  lint:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Check syntax
+        run: |
+          python -m py_compile backend/app/main.py
+          python -m py_compile backend/app/core/config.py
+          python -m py_compile backend/app/core/validation.py
+          python -m py_compile backend/app/core/memory.py
+          python -m py_compile backend/app/api/health.py
