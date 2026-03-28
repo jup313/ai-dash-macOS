@@ -9,6 +9,7 @@ import type {
   LLMConfig,
   LLMConfigUpdate,
   MemoryStats,
+  ModelInfo,
   RouterStatus,
   SchedulerStatus,
   WorkflowInfo,
@@ -30,6 +31,8 @@ export const fetchHealth = () => get<HealthResponse>("/health");
 
 export const fetchRouterStatus = () => get<RouterStatus>("/api/llm/status");
 export const fetchLLMConfig = () => get<LLMConfig>("/api/llm/config");
+export const fetchModels = (provider?: string) =>
+  get<ModelInfo[]>(provider ? `/api/llm/models?provider=${provider}` : "/api/llm/models");
 
 export async function updateLLMConfig(update: LLMConfigUpdate): Promise<LLMConfig> {
   const res = await fetch(`${BASE}/api/llm/config`, {

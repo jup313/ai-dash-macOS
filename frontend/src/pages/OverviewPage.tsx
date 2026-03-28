@@ -1,8 +1,8 @@
 import { useState, useEffect } from "react";
 import { usePoll } from "../hooks/usePoll";
-import { fetchAll, fetchLLMConfig, updateLLMConfig } from "../api";
+import { fetchAll, fetchLLMConfig, fetchModels, updateLLMConfig } from "../api";
 import Card, { Stat, Badge } from "../components/Card";
-import type { LLMConfig } from "../types";
+import type { LLMConfig, ModelInfo } from "../types";
 
 export default function OverviewPage() {
   const { data, loading, error } = usePoll(fetchAll, 5000);
@@ -14,7 +14,9 @@ export default function OverviewPage() {
 
   // Form state
   const [selectedProvider, setSelectedProvider] = useState("");
-  const [modelInput, setModelInput] = useState("");
+  const [selectedModel, setSelectedModel] = useState("");
+  const [availableModels, setAvailableModels] = useState<ModelInfo[]>([]);
+  const [loadingModels, setLoadingModels] = useState(false);
 
   // Load LLM config on mount
   useEffect(() => {
@@ -22,7 +24,7 @@ export default function OverviewPage() {
       .then((cfg) => {
         setLlmConfig(cfg);
         setSelectedProvider(cfg.active_provider);
-        setModelInput(
+        setSelectedModel(
           cfg.active_provider === "ollama"
             ? cfg.ollama_model
             : cfg.openai_model
@@ -31,12 +33,30 @@ export default function OverviewPage() {
       .catch(() => setConfigError("Could not load LLM config"));
   }, []);
 
-  // Sync model input when provider selection changes
+  // Fetch available models when provider changes
   useEffect(() => {
-    if (!llmConfig) return;
-    if (selectedProvider === "ollama") setModelInput(llmConfig.ollama_model);
-    else if (selectedProvider === "openai") setModelInput(llmConfig.openai_model);
-    else setModelInput("");
+    if (!selectedProvider) return;
+    setLoadingModels(true);
+    fetchModels(selectedProvider)
+      .then((models) => {
+        setAvailableModels(models);
+        // Set default model for selected provider
+        if (llmConfig) {
+          if (selectedProvider === "ollama") setSelectedModel(llmConfig.ollama_model);
+          else if (selectedProvider === "openai") setSelectedModel(llmConfig.openai_model);
+          else setSelectedModel(models[0]?.name ?? "");
+        }
+      })
+      .catch(() => {
+        setAvailableModels([]);
+        // Fall back to config value
+        if (llmConfig) {
+          if (selectedProvider === "ollama") setSelectedModel(llmConfig.ollama_model);
+          else if (selectedProvider === "openai") setSelectedModel(llmConfig.openai_model);
+          else setSelectedModel("");
+        }
+      })
+      .finally(() => setLoadingModels(false));
   }, [selectedProvider, llmConfig]);
 
   const handleSaveConfig = async () => {
@@ -45,11 +65,11 @@ export default function OverviewPage() {
     try {
       const updated = await updateLLMConfig({
         provider: selectedProvider !== llmConfig?.active_provider ? selectedProvider : undefined,
-        model: modelInput || undefined,
+        model: selectedModel || undefined,
       });
       setLlmConfig(updated);
       setSelectedProvider(updated.active_provider);
-      setModelInput(
+      setSelectedModel(
         updated.active_provider === "ollama"
           ? updated.ollama_model
           : updated.openai_model
@@ -177,22 +197,46 @@ export default function OverviewPage() {
                 </select>
               </div>
 
-              {/* Model Input */}
+              {/* Model Selector */}
               <div>
-                <label className="block text-xs text-dash-muted mb-1.5">Default Model</label>
-                <input
-                  type="text"
-                  value={modelInput}
-                  onChange={(e) => setModelInput(e.target.value)}
-                  placeholder={
-                    selectedProvider === "ollama"
-                      ? "e.g. llama3:8b, mistral, codellama"
-                      : selectedProvider === "openai"
-                        ? "e.g. gpt-4o, gpt-4o-mini"
-                        : "e.g. claude-3-sonnet"
-                  }
-                  className="w-full bg-dash-bg border border-dash-border rounded-lg px-3 py-2 text-sm text-dash-text placeholder:text-dash-muted/50 focus:outline-none focus:border-dash-accent transition-colors"
-                />
+                <label className="block text-xs text-dash-muted mb-1.5">
+                  Default Model
+                  {loadingModels && <span className="ml-2 animate-pulse">detecting…</span>}
+                  {!loadingModels && availableModels.length > 0 && (
+                    <span className="ml-2 text-dash-success">({availableModels.length} found)</span>
+                  )}
+                </label>
+                {availableModels.length > 0 ? (
+                  <select
+                    value={selectedModel}
+                    onChange={(e) => setSelectedModel(e.target.value)}
+                    className="w-full bg-dash-bg border border-dash-border rounded-lg px-3 py-2 text-sm text-dash-text focus:outline-none focus:border-dash-accent transition-colors"
+                  >
+                    {availableModels.map((m) => (
+                      <option key={m.name} value={m.name}>
+                        {m.name}
+                      </option>
+                    ))}
+                    {/* Include current model if not in the list */}
+                    {selectedModel && !availableModels.some((m) => m.name === selectedModel) && (
+                      <option value={selectedModel}>{selectedModel} (current)</option>
+                    )}
+                  </select>
+                ) : (
+                  <input
+                    type="text"
+                    value={selectedModel}
+                    onChange={(e) => setSelectedModel(e.target.value)}
+                    placeholder={
+                      selectedProvider === "ollama"
+                        ? "e.g. llama3:8b, mistral, codellama"
+                        : selectedProvider === "openai"
+                          ? "e.g. gpt-4o, gpt-4o-mini"
+                          : "e.g. claude-3-sonnet"
+                    }
+                    className="w-full bg-dash-bg border border-dash-border rounded-lg px-3 py-2 text-sm text-dash-text placeholder:text-dash-muted/50 focus:outline-none focus:border-dash-accent transition-colors"
+                  />
+                )}
               </div>
 
               {/* Save Button */}
