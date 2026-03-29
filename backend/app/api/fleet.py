@@ -252,6 +252,84 @@ async def fetch_fleet_context(query: str) -> str | None:
                     if seerr_resp.status_code == 200:
                         sections.append(f"Seerr Requests: {json.dumps(seerr_resp.json(), indent=2)}")
 
+            # Music DB / Playlist / Tagging queries
+            music_keywords = [
+                "music", "song", "track", "playlist", "artist", "album",
+                "genre", "mood", "country", "sync music", "music database",
+                "tag", "tagging", "auto-tag", "autotag", "untagged",
+                "fingerprint", "identify", "musicbrainz", "acoustid",
+                "generate playlist", "create playlist", "play music",
+                "search music", "search song", "find song", "find music",
+            ]
+            if any(kw in query_lower for kw in music_keywords):
+                # Get music DB stats
+                stats_resp = await client.get(f"{FLEET_BASE}/api/fleet/music/stats")
+                if stats_resp.status_code == 200:
+                    sections.append(f"Music Database Stats: {json.dumps(stats_resp.json(), indent=2)}")
+
+                # If searching for a specific song/track
+                if any(kw in query_lower for kw in ["search", "find", "look up", "looking for"]):
+                    # Extract search terms (everything after search/find keywords)
+                    import re
+                    search_match = re.search(r'(?:search|find|look(?:ing)?\s*(?:for|up)?)\s+(.+?)(?:\s+(?:on|in|from|by)\s|$)', query_lower)
+                    if search_match:
+                        search_q = search_match.group(1).strip()
+                        search_resp = await client.get(
+                            f"{FLEET_BASE}/api/fleet/music/search",
+                            params={"q": search_q, "limit": "20"},
+                        )
+                        if search_resp.status_code == 200:
+                            sections.append(f"Music Search Results for '{search_q}': {json.dumps(search_resp.json(), indent=2)}")
+
+                # Genre/mood/country lists for context
+                if any(kw in query_lower for kw in ["genre", "mood", "country", "playlist", "generate"]):
+                    genres_resp = await client.get(f"{FLEET_BASE}/api/fleet/music/genres")
+                    if genres_resp.status_code == 200:
+                        sections.append(f"Available Genres: {json.dumps(genres_resp.json(), indent=2)}")
+
+                    moods_resp = await client.get(f"{FLEET_BASE}/api/fleet/music/moods")
+                    if moods_resp.status_code == 200:
+                        sections.append(f"Available Moods: {json.dumps(moods_resp.json(), indent=2)}")
+
+                    countries_resp = await client.get(f"{FLEET_BASE}/api/fleet/music/countries")
+                    if countries_resp.status_code == 200:
+                        sections.append(f"Available Countries: {json.dumps(countries_resp.json(), indent=2)}")
+
+                # Tag status
+                if any(kw in query_lower for kw in ["tag", "tagging", "untagged", "auto-tag", "autotag", "fingerprint", "identify"]):
+                    progress_resp = await client.get(f"{FLEET_BASE}/api/fleet/music/tag/progress")
+                    if progress_resp.status_code == 200:
+                        sections.append(f"Tag Progress: {json.dumps(progress_resp.json(), indent=2)}")
+
+                # Playlists
+                if any(kw in query_lower for kw in ["playlist"]):
+                    playlists_resp = await client.get(f"{FLEET_BASE}/api/fleet/music/playlists")
+                    if playlists_resp.status_code == 200:
+                        sections.append(f"Playlists: {json.dumps(playlists_resp.json(), indent=2)}")
+
+                # Tell the LLM what music actions are available
+                sections.append(
+                    "Music Available Actions:\n"
+                    "- SYNC music DB from Plex: POST /api/fleet/music/sync (run this first if DB is empty)\n"
+                    "- SEARCH tracks: GET /api/fleet/music/search?q=QUERY&limit=50\n"
+                    "- FILTER tracks: GET /api/fleet/music/tracks?genre=X&mood=X&country=X&artist=X&album=X&year=X\n"
+                    "- GENERATE playlist: POST /api/fleet/music/playlist/generate {name, genre?, mood?, country?, artist?, album?, year?, limit?, shuffle?}\n"
+                    "- LIST playlists: GET /api/fleet/music/playlists\n"
+                    "- DELETE playlist: DELETE /api/fleet/music/playlist/{plexId}\n"
+                    "- PLAY on Sonos: POST /api/fleet/music/playlist/play-sonos {room, genre?, mood?, country?, artist?, album?, limit?, shuffle?}\n"
+                    "- AUTO-TAG all: POST /api/fleet/music/tag/auto (background batch)\n"
+                    "- TAG single: POST /api/fleet/music/tag/single {plex_key}\n"
+                    "- TAG progress: GET /api/fleet/music/tag/progress\n"
+                    "- IDENTIFY batch (fingerprint): POST /api/fleet/music/tag/identify-batch\n"
+                    "- PLEX scan: POST /api/fleet/music/plex-scan\n"
+                    "- DB stats: GET /api/fleet/music/stats\n"
+                    "- Genres: GET /api/fleet/music/genres\n"
+                    "- Moods: GET /api/fleet/music/moods\n"
+                    "- Countries: GET /api/fleet/music/countries\n"
+                    "- Artists: GET /api/fleet/music/artists\n"
+                    "- Albums: GET /api/fleet/music/albums?artist=X\n"
+                )
+
             # Local Mac queries
             mac_keywords = ["local mac", "this mac", "my mac", "cpu", "memory", "disk", "battery"]
             if any(kw in query_lower for kw in mac_keywords):
@@ -302,8 +380,7 @@ FLEET_KEYWORDS = [
     "disk usage", "battery", "server", "remote", "mac mini", "rocky",
     "status", "online", "offline", "uptime",
     # Sonos
-    "sonos", "speaker", "music", "playing", "volume", "song", "track",
-    "playlist", "favorite", "soundbar", "beam",
+    "sonos", "speaker", "playing", "volume", "soundbar", "beam",
     # Alexa
     "alexa", "echo", "amazon", "smart home", "routine", "fire tv",
     "announce", "announcement",
@@ -313,7 +390,14 @@ FLEET_KEYWORDS = [
     "movie", "movies", "tv show", "series", "episode", "season",
     "streaming", "stream", "watching", "library", "indexer",
     "media server", "media stack", "recently added", "calendar",
-    "queue", "artist", "album", "request", "requested",
+    "queue", "request", "requested",
+    # Music DB / Playlist / Tagging
+    "music", "song", "track", "playlist", "artist", "album",
+    "genre", "mood", "country", "sync music", "music database",
+    "tag", "tagging", "auto-tag", "autotag", "untagged",
+    "fingerprint", "identify", "musicbrainz", "acoustid",
+    "generate playlist", "create playlist", "play music",
+    "search music", "search song", "find song", "find music",
 ]
 
 
@@ -594,3 +678,173 @@ async def media_nzbget_status():
 async def media_seerr_requests():
     """Seerr/Overseerr media requests."""
     return await _proxy_get("/api/fleet/media/seerr/requests")
+
+
+# ── Music Database / Playlists / Tagging ──────────────────────────────────────
+
+
+@router.post("/music/sync")
+async def music_sync():
+    """Sync Plex music library → local SQLite DB."""
+    return await _proxy_post("/api/fleet/music/sync")
+
+
+@router.get("/music/stats")
+async def music_stats():
+    """Music database statistics."""
+    return await _proxy_get("/api/fleet/music/stats")
+
+
+@router.get("/music/search")
+async def music_search(q: str, limit: int = 50):
+    """Full-text search tracks."""
+    return await _proxy_get(f"/api/fleet/music/search?q={q}&limit={limit}")
+
+
+@router.get("/music/tracks")
+async def music_tracks(
+    genre: str | None = None,
+    mood: str | None = None,
+    country: str | None = None,
+    artist: str | None = None,
+    album: str | None = None,
+    year: int | None = None,
+    year_from: int | None = None,
+    year_to: int | None = None,
+    tag_status: str | None = None,
+    limit: int | None = None,
+):
+    """Filter tracks by genre/mood/country/artist/album/year."""
+    params = []
+    if genre:
+        params.append(f"genre={genre}")
+    if mood:
+        params.append(f"mood={mood}")
+    if country:
+        params.append(f"country={country}")
+    if artist:
+        params.append(f"artist={artist}")
+    if album:
+        params.append(f"album={album}")
+    if year is not None:
+        params.append(f"year={year}")
+    if year_from is not None:
+        params.append(f"year_from={year_from}")
+    if year_to is not None:
+        params.append(f"year_to={year_to}")
+    if tag_status:
+        params.append(f"tag_status={tag_status}")
+    if limit is not None:
+        params.append(f"limit={limit}")
+    qs = "&".join(params)
+    path = f"/api/fleet/music/tracks?{qs}" if qs else "/api/fleet/music/tracks"
+    return await _proxy_get(path)
+
+
+@router.get("/music/genres")
+async def music_genres():
+    """List all genres in the music database."""
+    return await _proxy_get("/api/fleet/music/genres")
+
+
+@router.get("/music/moods")
+async def music_moods():
+    """List all moods in the music database."""
+    return await _proxy_get("/api/fleet/music/moods")
+
+
+@router.get("/music/countries")
+async def music_countries():
+    """List all countries in the music database."""
+    return await _proxy_get("/api/fleet/music/countries")
+
+
+@router.get("/music/artists")
+async def music_artists():
+    """List all artists in the music database."""
+    return await _proxy_get("/api/fleet/music/artists")
+
+
+@router.get("/music/albums")
+async def music_albums(artist: str | None = None):
+    """List albums (optionally filter by artist)."""
+    path = f"/api/fleet/music/albums?artist={artist}" if artist else "/api/fleet/music/albums"
+    return await _proxy_get(path)
+
+
+@router.post("/music/playlist/generate")
+async def music_playlist_generate(body: dict):
+    """Generate a playlist from filter criteria and create in Plex. Body: {name, genre?, mood?, country?, artist?, album?, year?, limit?, shuffle?}"""
+    return await _proxy_post("/api/fleet/music/playlist/generate", body)
+
+
+@router.get("/music/playlists")
+async def music_playlists():
+    """List all playlists."""
+    return await _proxy_get("/api/fleet/music/playlists")
+
+
+@router.delete("/music/playlist/{plex_id}")
+async def music_playlist_delete(plex_id: str):
+    """Delete a Plex playlist."""
+    try:
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            resp = await client.delete(
+                f"{FLEET_BASE}/api/fleet/music/playlist/{plex_id}"
+            )
+            resp.raise_for_status()
+            return resp.json()
+    except httpx.ConnectError:
+        raise HTTPException(status_code=503, detail="Fleet MCP server is not running.")
+    except httpx.HTTPStatusError as exc:
+        raise HTTPException(status_code=exc.response.status_code, detail=str(exc))
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+@router.post("/music/playlist/play-sonos")
+async def music_playlist_play_sonos(body: dict):
+    """Play filtered tracks on a Sonos speaker. Body: {room, genre?, mood?, country?, artist?, album?, limit?, shuffle?}"""
+    return await _proxy_post("/api/fleet/music/playlist/play-sonos", body)
+
+
+@router.post("/music/tag/auto")
+async def music_tag_auto():
+    """Auto-tag all untagged tracks (background batch)."""
+    return await _proxy_post("/api/fleet/music/tag/auto")
+
+
+@router.post("/music/tag/single")
+async def music_tag_single(body: dict):
+    """Tag a single track. Body: {plex_key}"""
+    return await _proxy_post("/api/fleet/music/tag/single", body)
+
+
+@router.get("/music/tag/progress")
+async def music_tag_progress():
+    """Get current auto-tag batch progress."""
+    return await _proxy_get("/api/fleet/music/tag/progress")
+
+
+@router.get("/music/tag/untagged")
+async def music_tag_untagged():
+    """List untagged tracks."""
+    return await _proxy_get("/api/fleet/music/tag/untagged")
+
+
+@router.get("/music/tag/unidentified")
+async def music_tag_unidentified():
+    """List unidentified tracks."""
+    return await _proxy_get("/api/fleet/music/tag/unidentified")
+
+
+@router.post("/music/tag/identify-batch")
+async def music_tag_identify_batch():
+    """Retry identification on unidentified tracks using audio fingerprinting."""
+    return await _proxy_post("/api/fleet/music/tag/identify-batch")
+
+
+@router.post("/music/plex-scan")
+async def music_plex_scan():
+    """Trigger Plex music library scan."""
+    return await _proxy_post("/api/fleet/music/plex-scan")
