@@ -134,12 +134,22 @@ async def fetch_fleet_context(query: str) -> str | None:
             # Alexa-specific queries
             alexa_keywords = [
                 "alexa", "echo", "amazon", "smart home", "routine",
-                "fire tv", "do not disturb", "dnd",
+                "fire tv", "do not disturb", "dnd", "announce", "announcement",
             ]
             if any(kw in query_lower for kw in alexa_keywords):
                 devices_resp = await client.get(f"{FLEET_BASE}/api/fleet/alexa/devices")
                 if devices_resp.status_code == 200:
                     sections.append(f"Alexa Devices: {json.dumps(devices_resp.json(), indent=2)}")
+
+                # Tell the LLM what Alexa actions are available
+                sections.append(
+                    "Alexa Available Actions:\n"
+                    "- ANNOUNCE to ALL devices: POST /api/fleet/alexa/announce {text: 'message'}\n"
+                    "- ANNOUNCE to ONE device: POST /api/fleet/alexa/announce {text: 'message', serialNumber: 'DEVICE_SERIAL'}\n"
+                    "- SPEAK on one device: POST /api/fleet/alexa/speak {serialNumber: 'DEVICE_SERIAL', text: 'message'}\n"
+                    "- To announce, you only need the text. No tokens needed — use serialNumber from device list above.\n"
+                    "- 'announce' broadcasts to ALL Alexa devices at once. 'speak' sends TTS to just one device."
+                )
 
                 if any(kw in query_lower for kw in ["smart home", "light", "plug", "thermostat"]):
                     sh_resp = await client.get(f"{FLEET_BASE}/api/fleet/alexa/smart-home")
@@ -205,6 +215,7 @@ FLEET_KEYWORDS = [
     "playlist", "favorite", "soundbar", "beam",
     # Alexa
     "alexa", "echo", "amazon", "smart home", "routine", "fire tv",
+    "announce", "announcement",
 ]
 
 
@@ -363,8 +374,14 @@ async def alexa_smart_home():
 
 @router.post("/alexa/speak")
 async def alexa_speak(body: dict):
-    """Make Alexa speak. Body: {serialNumber, text}"""
+    """Make Alexa speak on one device. Body: {serialNumber, text}"""
     return await _proxy_post("/api/fleet/alexa/speak", body)
+
+
+@router.post("/alexa/announce")
+async def alexa_announce(body: dict):
+    """Announce on ALL Alexa devices or a specific one. Body: {text, serialNumber?}"""
+    return await _proxy_post("/api/fleet/alexa/announce", body)
 
 
 @router.get("/alexa/routines")
