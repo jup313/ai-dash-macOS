@@ -102,19 +102,27 @@ export function useSpeechRecognition(
         setTranscript(accumulatedRef.current);
         onResult?.(accumulatedRef.current);
 
-        // In auto mode, reset silence timer on each final result
-        if (autoModeRef.current) {
-          clearSilenceTimer();
-          silenceTimerRef.current = setTimeout(() => {
-            const text = accumulatedRef.current.trim();
-            if (text) {
-              onAutoSend?.(text);
-              accumulatedRef.current = "";
-              setTranscript("");
-              setInterimTranscript("");
+        // Reset silence timer — auto-send when user stops speaking
+        // Works in BOTH push-to-talk and auto modes
+        clearSilenceTimer();
+        silenceTimerRef.current = setTimeout(() => {
+          const text = accumulatedRef.current.trim();
+          if (text) {
+            onAutoSend?.(text);
+            accumulatedRef.current = "";
+            setTranscript("");
+            setInterimTranscript("");
+
+            // In push-to-talk mode, stop listening after auto-send
+            if (!autoModeRef.current) {
+              if (recognitionRef.current) {
+                try { recognitionRef.current.stop(); } catch {}
+                recognitionRef.current = null;
+              }
+              setMode("off");
             }
-          }, silenceTimeout);
-        }
+          }
+        }, silenceTimeout);
       }
 
       if (interim) {

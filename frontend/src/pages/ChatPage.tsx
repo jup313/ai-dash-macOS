@@ -598,8 +598,8 @@ export default function ChatPage() {
                   stt.mode === "paused" ? "bg-blue-500" : "bg-gray-500"
                 }`} />
                 <span className="text-dash-muted">
-                  {stt.mode === "listening" && "Listening…"}
-                  {stt.mode === "auto" && "🔄 Auto mode — speak naturally"}
+                  {stt.mode === "listening" && "🎙️ Listening… (auto-sends when you stop talking)"}
+                  {stt.mode === "auto" && "🔄 Auto mode — speak naturally, auto-sends on silence"}
                   {stt.mode === "paused" && "⏸️ Agent speaking…"}
                 </span>
                 {stt.interimTranscript && (
