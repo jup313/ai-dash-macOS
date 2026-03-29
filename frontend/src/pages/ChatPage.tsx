@@ -6,6 +6,9 @@ import {
   fetchLLMConfig,
   fetchModels,
   fetchPersonalities,
+  fetchKnowledgeTopics,
+  learnTopic,
+  deleteKnowledgeTopic,
   createConversation,
   deleteConversation,
   sendChatMessage,
@@ -43,6 +46,11 @@ export default function ChatPage() {
   const [loadingModels, setLoadingModels] = useState(false);
   const [useStreaming, setUseStreaming] = useState(true);
   const [showVoiceSettings, setShowVoiceSettings] = useState(false);
+  const [showKnowledge, setShowKnowledge] = useState(false);
+  const [knowledgeTopics, setKnowledgeTopics] = useState<Array<{ id: string; topic: string; sources: number; tags: string[]; learned_at: number; summary: string }>>([]);
+  const [learnInput, setLearnInput] = useState("");
+  const [learning, setLearning] = useState(false);
+  const [learnStatus, setLearnStatus] = useState<string | null>(null);
 
   // Web search state
   const [webSearchMode, setWebSearchMode] = useState<"auto" | "on" | "off">("auto");
@@ -499,6 +507,105 @@ export default function ChatPage() {
             >
               🔊 Test Voice
             </button>
+          </div>
+        )}
+
+        {/* Knowledge Base / Train LLM */}
+        <button
+          onClick={() => {
+            setShowKnowledge(!showKnowledge);
+            if (!showKnowledge) {
+              fetchKnowledgeTopics().then((data) => setKnowledgeTopics(data.topics)).catch(() => {});
+            }
+          }}
+          className="flex items-center gap-2 mb-2 px-2 text-xs text-dash-muted hover:text-dash-text transition-colors"
+        >
+          <span>{showKnowledge ? "▼" : "▶"}</span>
+          <span>📚 Knowledge Base</span>
+          {knowledgeTopics.length > 0 && (
+            <span className="text-green-400 text-[10px]">{knowledgeTopics.length} topics</span>
+          )}
+        </button>
+
+        {showKnowledge && (
+          <div className="mb-3 px-2 space-y-2 bg-dash-surface/50 rounded-lg p-2 border border-dash-border/50">
+            <div className="text-[9px] text-dash-muted/70">
+              Search the web to teach your LLM about any topic. Knowledge persists across chats.
+            </div>
+
+            {/* Learn input */}
+            <div className="flex gap-1">
+              <input
+                type="text"
+                value={learnInput}
+                onChange={(e) => setLearnInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && learnInput.trim() && !learning) {
+                    setLearning(true);
+                    setLearnStatus(null);
+                    learnTopic(learnInput.trim())
+                      .then((res) => {
+                        setLearnStatus(`✅ Learned "${res.topic}" — ${res.sources_found} sources`);
+                        setLearnInput("");
+                        fetchKnowledgeTopics().then((data) => setKnowledgeTopics(data.topics)).catch(() => {});
+                      })
+                      .catch((err) => setLearnStatus(`❌ ${err.message}`))
+                      .finally(() => setLearning(false));
+                  }
+                }}
+                placeholder="e.g. quantum computing basics"
+                disabled={learning}
+                className="flex-1 bg-dash-surface border border-dash-border rounded px-2 py-1 text-[11px] text-dash-text placeholder:text-dash-muted/50 focus:outline-none focus:border-dash-accent disabled:opacity-50"
+              />
+              <button
+                onClick={() => {
+                  if (!learnInput.trim() || learning) return;
+                  setLearning(true);
+                  setLearnStatus(null);
+                  learnTopic(learnInput.trim())
+                    .then((res) => {
+                      setLearnStatus(`✅ Learned "${res.topic}" — ${res.sources_found} sources`);
+                      setLearnInput("");
+                      fetchKnowledgeTopics().then((data) => setKnowledgeTopics(data.topics)).catch(() => {});
+                    })
+                    .catch((err) => setLearnStatus(`❌ ${err.message}`))
+                    .finally(() => setLearning(false));
+                }}
+                disabled={!learnInput.trim() || learning}
+                className="px-2 py-1 text-[10px] font-medium rounded bg-dash-accent/20 text-dash-accent hover:bg-dash-accent/30 disabled:opacity-30 transition-colors"
+              >
+                {learning ? "⏳" : "📖 Learn"}
+              </button>
+            </div>
+
+            {learnStatus && (
+              <div className="text-[10px] text-dash-text px-0.5">{learnStatus}</div>
+            )}
+
+            {/* Learned topics list */}
+            {knowledgeTopics.length > 0 && (
+              <div className="space-y-1 max-h-32 overflow-y-auto">
+                {knowledgeTopics.map((t) => (
+                  <div key={t.id} className="flex items-center gap-1 text-[10px] group">
+                    <span className="text-dash-text truncate flex-1" title={t.summary}>
+                      📗 {t.topic}
+                    </span>
+                    <span className="text-dash-muted">{t.sources}src</span>
+                    <button
+                      onClick={() => {
+                        deleteKnowledgeTopic(t.id).then(() => {
+                          setKnowledgeTopics((prev) => prev.filter((x) => x.id !== t.id));
+                        }).catch(() => {});
+                      }}
+                      className="opacity-0 group-hover:opacity-100 text-dash-error hover:text-dash-error/80 transition-opacity"
+                      title="Remove topic"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
 

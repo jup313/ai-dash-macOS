@@ -211,6 +211,37 @@ export async function updateN8nConfig(config: {
 
 export const fetchPersonalities = () => get<Personality[]>("/api/personalities/");
 
+// ── Knowledge Base ────────────────────────────────────────────────────────────
+
+export async function learnTopic(
+  topic: string,
+  options?: { max_results?: number; include_news?: boolean; tags?: string[] }
+): Promise<{ id: string; topic: string; sources_found: number; summary: string; tags: string[] }> {
+  const res = await fetch(`${BASE}/api/knowledge/learn`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ topic, ...options }),
+  });
+  if (!res.ok) {
+    const detail = await res.text();
+    throw new Error(`Learn topic error: ${res.status} ${detail}`);
+  }
+  return res.json();
+}
+
+export async function fetchKnowledgeTopics(): Promise<{
+  total_topics: number;
+  total_sources: number;
+  topics: Array<{ id: string; topic: string; sources: number; tags: string[]; learned_at: number; summary: string }>;
+}> {
+  return get("/api/knowledge/topics");
+}
+
+export async function deleteKnowledgeTopic(topicId: string): Promise<void> {
+  const res = await fetch(`${BASE}/api/knowledge/topics/${topicId}`, { method: "DELETE" });
+  if (!res.ok) throw new Error(`Delete topic: ${res.status}`);
+}
+
 // ── Fleet ─────────────────────────────────────────────────────────────────────
 
 export const fetchFleetStatus = () => get<FleetStatus>("/api/fleet/status");

@@ -15,6 +15,7 @@ from pydantic import BaseModel, Field
 
 from backend.app.agents.registry import get_registry
 from backend.app.api.fleet import fetch_fleet_context, is_fleet_query
+from backend.app.api.knowledge import search_knowledge
 from backend.app.api.web_search import fetch_search_context, should_search
 from backend.app.api.personalities import get_personality
 from backend.app.llm.base import ProviderError, ProviderUnavailableError
@@ -186,6 +187,12 @@ async def chat_in_conversation(
         search_context = await fetch_search_context(request.content)
         if search_context:
             system_prompt = f"{system_prompt}\n\n{search_context}"
+
+    # 2d. Knowledge base — inject previously researched topics
+    kb_context = search_knowledge(request.content)
+    if kb_context:
+        logger.info("Knowledge base match for: %s", request.content[:80])
+        system_prompt = f"{system_prompt}\n\n{kb_context}"
 
     # 3. Build messages from conversation history
     history = store.get_messages(conversation_id, limit=50)
