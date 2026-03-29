@@ -15,6 +15,7 @@ from pydantic import BaseModel, Field
 
 from backend.app.agents.registry import get_registry
 from backend.app.api.fleet import fetch_fleet_context, is_fleet_query
+from backend.app.api.web_search import fetch_search_context, should_search
 from backend.app.api.personalities import get_personality
 from backend.app.llm.base import ProviderError, ProviderUnavailableError
 from backend.app.llm.models import ChatRequest, Message, Role, StreamChunk
@@ -44,6 +45,10 @@ class ChatMessageRequest(BaseModel):
     provider: str | None = Field(default=None, description="Provider override")
     stream: bool = Field(default=False, description="Enable streaming response")
     personality: str | None = Field(default=None, description="Personality preset ID")
+    web_search: str = Field(
+        default="auto",
+        description="Web search mode: 'on' (always search), 'off' (never), 'auto' (detect when needed)",
+    )
 
 
 @router.post("/", response_model=Conversation)
@@ -170,6 +175,17 @@ async def chat_in_conversation(
         fleet_context = await fetch_fleet_context(request.content)
         if fleet_context:
             system_prompt = f"{system_prompt}\n\n{fleet_context}"
+
+    # 2c. Web search — inject internet search results into context
+    do_search = (
+        request.web_search == "on"
+        or (request.web_search == "auto" and should_search(request.content))
+    )
+    if do_search:
+        logger.info("Web search triggered for: %s", request.content[:80])
+        search_context = await fetch_search_context(request.content)
+        if search_context:
+            system_prompt = f"{system_prompt}\n\n{search_context}"
 
     # 3. Build messages from conversation history
     history = store.get_messages(conversation_id, limit=50)

@@ -44,6 +44,9 @@ export default function ChatPage() {
   const [useStreaming, setUseStreaming] = useState(true);
   const [showVoiceSettings, setShowVoiceSettings] = useState(false);
 
+  // Web search state
+  const [webSearchMode, setWebSearchMode] = useState<"auto" | "on" | "off">("auto");
+
   // Personality state
   const [personalities, setPersonalities] = useState<Personality[]>([]);
   const [selectedPersonality, setSelectedPersonality] = useState<string>("default");
@@ -204,7 +207,7 @@ export default function ChatPage() {
         let fullResponse = "";
         const controller = streamChatMessage(
           activeConvId,
-          { content: userMessage, agent: selectedAgent, model: selectedModel || undefined, personality: selectedPersonality || undefined },
+          { content: userMessage, agent: selectedAgent, model: selectedModel || undefined, personality: selectedPersonality || undefined, web_search: webSearchMode },
           (chunk) => {
             fullResponse += chunk;
             setStreamingText((prev) => prev + chunk);
@@ -232,6 +235,7 @@ export default function ChatPage() {
           agent: selectedAgent,
           model: selectedModel || undefined,
           personality: selectedPersonality || undefined,
+          web_search: webSearchMode,
         });
         const updated = await fetchMessages(activeConvId);
         setMessages(updated);
@@ -352,6 +356,37 @@ export default function ChatPage() {
           />
           Stream responses
         </label>
+
+        {/* Web Search Toggle */}
+        <div className="mb-2 px-2">
+          <div className="flex items-center gap-2 text-xs text-dash-muted">
+            <span>🌐 Web Search:</span>
+            <div className="flex rounded-lg overflow-hidden border border-dash-border">
+              {(["auto", "on", "off"] as const).map((mode) => (
+                <button
+                  key={mode}
+                  onClick={() => setWebSearchMode(mode)}
+                  className={`px-2 py-0.5 text-[10px] font-medium transition-colors ${
+                    webSearchMode === mode
+                      ? mode === "on"
+                        ? "bg-green-500/30 text-green-400"
+                        : mode === "off"
+                        ? "bg-red-500/30 text-red-400"
+                        : "bg-dash-accent/30 text-dash-accent"
+                      : "bg-dash-surface text-dash-muted hover:text-dash-text"
+                  }`}
+                >
+                  {mode.toUpperCase()}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="text-[9px] text-dash-muted/70 mt-0.5 px-0.5">
+            {webSearchMode === "auto" && "Searches when it detects you need current info"}
+            {webSearchMode === "on" && "Always searches the web for every message"}
+            {webSearchMode === "off" && "Uses only local LLM knowledge"}
+          </div>
+        </div>
 
         {/* Personality Selector */}
         {personalities.length > 0 && (

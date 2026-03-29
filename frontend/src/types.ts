@@ -211,6 +211,7 @@ export interface ChatMessageRequest {
   provider?: string;
   stream?: boolean;
   personality?: string;
+  web_search?: "on" | "off" | "auto";
 }
 
 export interface ChatMessageResponse {
