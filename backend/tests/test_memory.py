@@ -126,6 +126,27 @@ class TestMemoryThresholds:
              patch("backend.app.core.memory.psutil.swap_memory", return_value=mock_swap):
             metrics = get_memory_metrics()
             assert metrics.status == MemoryStatus.CRITICAL
+            # heavy_model_allowed depends on HEAVY_MODEL_BLOCK_THRESHOLD (90%),
+            # not MEMORY_CRITICAL_THRESHOLD (75%), so 76% is still allowed
+            assert metrics.heavy_model_allowed is True
+
+    def test_heavy_model_blocked_above_block_threshold(self):
+        """Heavy model should be blocked above HEAVY_MODEL_BLOCK_THRESHOLD (90%)."""
+        mock_mem = type("MockMem", (), {
+            "total": int(28 * 1024**3),
+            "available": int(2 * 1024**3),
+            "used": int(26 * 1024**3),
+            "percent": 92.0,
+        })()
+        mock_swap = type("MockSwap", (), {
+            "used": 0,
+            "total": int(4 * 1024**3),
+        })()
+
+        with patch("backend.app.core.memory.psutil.virtual_memory", return_value=mock_mem), \
+             patch("backend.app.core.memory.psutil.swap_memory", return_value=mock_swap):
+            metrics = get_memory_metrics()
+            assert metrics.status == MemoryStatus.CRITICAL
             assert metrics.heavy_model_allowed is False
 
 
@@ -170,13 +191,13 @@ class TestModelLoadGating:
             assert can_load is False
             assert "Insufficient memory" in reason
 
-    def test_block_load_when_memory_critical(self):
-        """Should block any model load when memory is critical."""
+    def test_block_load_when_memory_above_block_threshold(self):
+        """Should block any model load when memory exceeds HEAVY_MODEL_BLOCK_THRESHOLD (90%)."""
         mock_mem = type("MockMem", (), {
             "total": int(28 * 1024**3),
-            "available": int(5 * 1024**3),
-            "used": int(23 * 1024**3),
-            "percent": 82.0,
+            "available": int(2 * 1024**3),
+            "used": int(26 * 1024**3),
+            "percent": 92.0,
         })()
         mock_swap = type("MockSwap", (), {
             "used": 0,
@@ -240,8 +261,8 @@ class TestThresholdConstants:
         assert MEMORY_CRITICAL_THRESHOLD == 75.0
 
     def test_block_threshold_value(self):
-        """Block threshold should be 75%."""
-        assert HEAVY_MODEL_BLOCK_THRESHOLD == 75.0
+        """Block threshold should be 90%."""
+        assert HEAVY_MODEL_BLOCK_THRESHOLD == 90.0
 
     def test_warning_less_than_critical(self):
         """Warning threshold must be less than critical."""
