@@ -161,6 +161,97 @@ async def fetch_fleet_context(query: str) -> str | None:
                     if routines_resp.status_code == 200:
                         sections.append(f"Alexa Routines: {json.dumps(routines_resp.json(), indent=2)}")
 
+            # Media Stack queries
+            media_keywords = [
+                "media", "plex", "sonarr", "radarr", "lidarr", "prowlarr",
+                "nzbget", "seerr", "overseerr", "download", "torrent", "usenet",
+                "movie", "movies", "tv show", "series", "episode", "season",
+                "streaming", "stream", "watching", "library", "indexer",
+                "media server", "media stack", "recently added", "calendar",
+                "queue", "artist", "album", "request", "requested",
+            ]
+            if any(kw in query_lower for kw in media_keywords):
+                media_resp = await client.get(f"{FLEET_BASE}/api/fleet/media/status")
+                if media_resp.status_code == 200:
+                    sections.append(f"Media Stack Status: {json.dumps(media_resp.json(), indent=2)}")
+
+                # Plex queries
+                if any(kw in query_lower for kw in ["plex", "streaming", "stream", "watching", "library", "recently added"]):
+                    sessions_resp = await client.get(f"{FLEET_BASE}/api/fleet/media/plex/sessions")
+                    if sessions_resp.status_code == 200:
+                        sections.append(f"Plex Active Sessions: {json.dumps(sessions_resp.json(), indent=2)}")
+
+                    libs_resp = await client.get(f"{FLEET_BASE}/api/fleet/media/plex/libraries")
+                    if libs_resp.status_code == 200:
+                        sections.append(f"Plex Libraries: {json.dumps(libs_resp.json(), indent=2)}")
+
+                    if any(kw in query_lower for kw in ["recently added", "new", "latest"]):
+                        recent_resp = await client.get(f"{FLEET_BASE}/api/fleet/media/plex/recent")
+                        if recent_resp.status_code == 200:
+                            sections.append(f"Plex Recently Added: {json.dumps(recent_resp.json(), indent=2)}")
+
+                # Sonarr queries (TV shows)
+                if any(kw in query_lower for kw in ["sonarr", "tv show", "series", "episode", "season"]):
+                    sonarr_series = await client.get(f"{FLEET_BASE}/api/fleet/media/sonarr/series")
+                    if sonarr_series.status_code == 200:
+                        sections.append(f"Sonarr Series: {json.dumps(sonarr_series.json(), indent=2)}")
+
+                    sonarr_queue = await client.get(f"{FLEET_BASE}/api/fleet/media/sonarr/queue")
+                    if sonarr_queue.status_code == 200:
+                        sections.append(f"Sonarr Queue: {json.dumps(sonarr_queue.json(), indent=2)}")
+
+                    if any(kw in query_lower for kw in ["calendar", "upcoming", "next"]):
+                        sonarr_cal = await client.get(f"{FLEET_BASE}/api/fleet/media/sonarr/calendar")
+                        if sonarr_cal.status_code == 200:
+                            sections.append(f"Sonarr Calendar: {json.dumps(sonarr_cal.json(), indent=2)}")
+
+                # Radarr queries (Movies)
+                if any(kw in query_lower for kw in ["radarr", "movie", "movies", "film"]):
+                    radarr_movies = await client.get(f"{FLEET_BASE}/api/fleet/media/radarr/movies")
+                    if radarr_movies.status_code == 200:
+                        sections.append(f"Radarr Movies: {json.dumps(radarr_movies.json(), indent=2)}")
+
+                    radarr_queue = await client.get(f"{FLEET_BASE}/api/fleet/media/radarr/queue")
+                    if radarr_queue.status_code == 200:
+                        sections.append(f"Radarr Queue: {json.dumps(radarr_queue.json(), indent=2)}")
+
+                    if any(kw in query_lower for kw in ["calendar", "upcoming", "next"]):
+                        radarr_cal = await client.get(f"{FLEET_BASE}/api/fleet/media/radarr/calendar")
+                        if radarr_cal.status_code == 200:
+                            sections.append(f"Radarr Calendar: {json.dumps(radarr_cal.json(), indent=2)}")
+
+                # Lidarr queries (Music)
+                if any(kw in query_lower for kw in ["lidarr", "artist", "album"]):
+                    lidarr_artists = await client.get(f"{FLEET_BASE}/api/fleet/media/lidarr/artists")
+                    if lidarr_artists.status_code == 200:
+                        sections.append(f"Lidarr Artists: {json.dumps(lidarr_artists.json(), indent=2)}")
+
+                    lidarr_queue = await client.get(f"{FLEET_BASE}/api/fleet/media/lidarr/queue")
+                    if lidarr_queue.status_code == 200:
+                        sections.append(f"Lidarr Queue: {json.dumps(lidarr_queue.json(), indent=2)}")
+
+                # Download queries
+                if any(kw in query_lower for kw in ["download", "queue", "torrent", "usenet", "nzbget"]):
+                    dl_resp = await client.get(f"{FLEET_BASE}/api/fleet/media/downloads")
+                    if dl_resp.status_code == 200:
+                        sections.append(f"All Downloads: {json.dumps(dl_resp.json(), indent=2)}")
+
+                    nzb_resp = await client.get(f"{FLEET_BASE}/api/fleet/media/nzbget/status")
+                    if nzb_resp.status_code == 200:
+                        sections.append(f"NZBGet Status: {json.dumps(nzb_resp.json(), indent=2)}")
+
+                # Prowlarr / Indexer queries
+                if any(kw in query_lower for kw in ["prowlarr", "indexer"]):
+                    idx_resp = await client.get(f"{FLEET_BASE}/api/fleet/media/prowlarr/indexers")
+                    if idx_resp.status_code == 200:
+                        sections.append(f"Prowlarr Indexers: {json.dumps(idx_resp.json(), indent=2)}")
+
+                # Seerr / Request queries
+                if any(kw in query_lower for kw in ["seerr", "overseerr", "request", "requested"]):
+                    seerr_resp = await client.get(f"{FLEET_BASE}/api/fleet/media/seerr/requests")
+                    if seerr_resp.status_code == 200:
+                        sections.append(f"Seerr Requests: {json.dumps(seerr_resp.json(), indent=2)}")
+
             # Local Mac queries
             mac_keywords = ["local mac", "this mac", "my mac", "cpu", "memory", "disk", "battery"]
             if any(kw in query_lower for kw in mac_keywords):
@@ -216,6 +307,13 @@ FLEET_KEYWORDS = [
     # Alexa
     "alexa", "echo", "amazon", "smart home", "routine", "fire tv",
     "announce", "announcement",
+    # Media Stack
+    "media", "plex", "sonarr", "radarr", "lidarr", "prowlarr",
+    "nzbget", "seerr", "overseerr", "download", "torrent", "usenet",
+    "movie", "movies", "tv show", "series", "episode", "season",
+    "streaming", "stream", "watching", "library", "indexer",
+    "media server", "media stack", "recently added", "calendar",
+    "queue", "artist", "album", "request", "requested",
 ]
 
 
@@ -397,3 +495,102 @@ async def alexa_routines():
 async def remote_exec(body: dict):
     """Execute a command on a remote device (SSH)."""
     return await _proxy_post("/api/fleet/remote/exec", body)
+
+
+# ── Media Stack (Rocky Linux – Sonarr/Radarr/Lidarr/Plex/etc.) ───────────────
+
+
+@router.get("/media/status")
+async def media_status():
+    """Overview of all media stack services (online/offline)."""
+    return await _proxy_get("/api/fleet/media/status")
+
+
+@router.get("/media/downloads")
+async def media_downloads():
+    """Combined download queue across all *arr apps + NZBGet."""
+    return await _proxy_get("/api/fleet/media/downloads")
+
+
+@router.get("/media/plex/sessions")
+async def media_plex_sessions():
+    """Active Plex streaming sessions."""
+    return await _proxy_get("/api/fleet/media/plex/sessions")
+
+
+@router.get("/media/plex/libraries")
+async def media_plex_libraries():
+    """Plex library counts."""
+    return await _proxy_get("/api/fleet/media/plex/libraries")
+
+
+@router.get("/media/plex/recent")
+async def media_plex_recent():
+    """Recently added items in Plex."""
+    return await _proxy_get("/api/fleet/media/plex/recent")
+
+
+@router.get("/media/sonarr/series")
+async def media_sonarr_series():
+    """Sonarr series stats (total, monitored, unmonitored)."""
+    return await _proxy_get("/api/fleet/media/sonarr/series")
+
+
+@router.get("/media/sonarr/queue")
+async def media_sonarr_queue():
+    """Sonarr download queue."""
+    return await _proxy_get("/api/fleet/media/sonarr/queue")
+
+
+@router.get("/media/sonarr/calendar")
+async def media_sonarr_calendar():
+    """Upcoming episodes from Sonarr."""
+    return await _proxy_get("/api/fleet/media/sonarr/calendar")
+
+
+@router.get("/media/radarr/movies")
+async def media_radarr_movies():
+    """Radarr movie stats (total, monitored, downloaded)."""
+    return await _proxy_get("/api/fleet/media/radarr/movies")
+
+
+@router.get("/media/radarr/queue")
+async def media_radarr_queue():
+    """Radarr download queue."""
+    return await _proxy_get("/api/fleet/media/radarr/queue")
+
+
+@router.get("/media/radarr/calendar")
+async def media_radarr_calendar():
+    """Upcoming movies from Radarr."""
+    return await _proxy_get("/api/fleet/media/radarr/calendar")
+
+
+@router.get("/media/lidarr/artists")
+async def media_lidarr_artists():
+    """Lidarr artist stats."""
+    return await _proxy_get("/api/fleet/media/lidarr/artists")
+
+
+@router.get("/media/lidarr/queue")
+async def media_lidarr_queue():
+    """Lidarr download queue."""
+    return await _proxy_get("/api/fleet/media/lidarr/queue")
+
+
+@router.get("/media/prowlarr/indexers")
+async def media_prowlarr_indexers():
+    """Prowlarr indexer list."""
+    return await _proxy_get("/api/fleet/media/prowlarr/indexers")
+
+
+@router.get("/media/nzbget/status")
+async def media_nzbget_status():
+    """NZBGet download status."""
+    return await _proxy_get("/api/fleet/media/nzbget/status")
+
+
+@router.get("/media/seerr/requests")
+async def media_seerr_requests():
+    """Seerr/Overseerr media requests."""
+    return await _proxy_get("/api/fleet/media/seerr/requests")
