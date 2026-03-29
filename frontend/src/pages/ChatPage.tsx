@@ -17,6 +17,8 @@ import type {
   LLMConfig,
   ModelInfo,
 } from "../types";
+import { useSpeechRecognition, type MicMode } from "../hooks/useSpeechRecognition";
+import { useSpeechSynthesis } from "../hooks/useSpeechSynthesis";
 
 export default function ChatPage() {
   // Sidebar state
@@ -38,10 +40,55 @@ export default function ChatPage() {
   const [availableModels, setAvailableModels] = useState<ModelInfo[]>([]);
   const [loadingModels, setLoadingModels] = useState(false);
   const [useStreaming, setUseStreaming] = useState(true);
+  const [showVoiceSettings, setShowVoiceSettings] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const abortRef = useRef<AbortController | null>(null);
+  const pendingAutoSendRef = useRef<string | null>(null);
+
+  // ── Voice: Text-to-Speech ─────────────────────────────────────
+  const tts = useSpeechSynthesis({
+    onEnd: () => {
+      // In auto mode, resume listening after agent finishes speaking
+      if (stt.mode === "paused") {
+        stt.resume();
+      }
+    },
+    onStart: () => {
+      // Pause mic while agent speaks to avoid feedback
+      if (stt.mode === "auto" || stt.mode === "listening") {
+        stt.pause();
+      }
+    },
+  });
+
+  // ── Voice: Speech-to-Text ─────────────────────────────────────
+  const stt = useSpeechRecognition({
+    lang: "en-US",
+    silenceTimeout: 1500,
+    onResult: (transcript) => {
+      setInput(transcript);
+    },
+    onInterim: (interim) => {
+      // Show interim text in input while speaking
+    },
+    onAutoSend: (transcript) => {
+      // In auto mode, auto-send when silence detected
+      pendingAutoSendRef.current = transcript;
+    },
+  });
+
+  // Handle auto-send from voice
+  useEffect(() => {
+    if (pendingAutoSendRef.current && activeConvId && !sending) {
+      const text = pendingAutoSendRef.current;
+      pendingAutoSendRef.current = null;
+      setInput(text);
+      // Trigger send after a tick so input state is set
+      setTimeout(() => handleSendText(text), 50);
+    }
+  }); // intentionally no deps — checks every render
 
   // Load conversations, agents, config on mount
   useEffect(() => {
@@ -111,15 +158,14 @@ export default function ChatPage() {
     } catch { /* ignore */ }
   };
 
-  const handleSend = async () => {
-    if (!input.trim() || sending || !activeConvId) return;
+  const handleSendText = async (text: string) => {
+    if (!text.trim() || sending || !activeConvId) return;
 
-    const userMessage = input.trim();
+    const userMessage = text.trim();
     setInput("");
     setSending(true);
     setError(null);
 
-    // Optimistically add user message to UI
     const optimisticMsg: ConversationMessage = {
       message_id: `temp-${Date.now()}`,
       role: "user",
@@ -130,16 +176,22 @@ export default function ChatPage() {
 
     try {
       if (useStreaming) {
-        // Streaming mode
         setStreamingText("");
+        let fullResponse = "";
         const controller = streamChatMessage(
           activeConvId,
           { content: userMessage, agent: selectedAgent, model: selectedModel || undefined },
-          (chunk) => setStreamingText((prev) => prev + chunk),
+          (chunk) => {
+            fullResponse += chunk;
+            setStreamingText((prev) => prev + chunk);
+          },
           () => {
-            // On done — reload messages from server to get full state
             setStreamingText("");
             setSending(false);
+            // Auto-speak agent response
+            if (tts.autoSpeak && fullResponse.trim()) {
+              tts.speak(fullResponse.trim());
+            }
             fetchMessages(activeConvId).then(setMessages).catch(() => {});
             refreshConversations();
           },
@@ -151,15 +203,20 @@ export default function ChatPage() {
         );
         abortRef.current = controller;
       } else {
-        // Non-streaming mode
         await sendChatMessage(activeConvId, {
           content: userMessage,
           agent: selectedAgent,
           model: selectedModel || undefined,
         });
-        // Reload messages
         const updated = await fetchMessages(activeConvId);
         setMessages(updated);
+        // Auto-speak the last assistant message
+        if (tts.autoSpeak && updated.length > 0) {
+          const last = updated[updated.length - 1];
+          if (last.role === "assistant" && last.content) {
+            tts.speak(last.content);
+          }
+        }
         refreshConversations();
         setSending(false);
       }
@@ -169,10 +226,16 @@ export default function ChatPage() {
     }
   };
 
+  const handleSend = () => handleSendText(input);
+
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       handleSend();
+    }
+    if (e.key === "Escape") {
+      stt.stop();
+      tts.stopSpeaking();
     }
   };
 
@@ -180,7 +243,17 @@ export default function ChatPage() {
     abortRef.current?.abort();
     setStreamingText("");
     setSending(false);
+    tts.stopSpeaking();
   };
+
+  // ── Mic button color/label logic ──────────────────────────────
+  const micModeStyles: Record<MicMode, { ring: string; bg: string; label: string }> = {
+    off: { ring: "", bg: "bg-dash-surface border border-dash-border", label: "🎙️" },
+    listening: { ring: "ring-2 ring-red-500 animate-pulse", bg: "bg-red-500/20 border border-red-500", label: "🔴" },
+    auto: { ring: "ring-2 ring-green-500 animate-pulse", bg: "bg-green-500/20 border border-green-500", label: "🔄" },
+    paused: { ring: "ring-2 ring-blue-500", bg: "bg-blue-500/20 border border-blue-500", label: "⏸️" },
+  };
+  const micStyle = micModeStyles[stt.mode];
 
   return (
     <div className="flex h-[calc(100vh-2rem)] gap-4">
@@ -245,7 +318,7 @@ export default function ChatPage() {
         </div>
 
         {/* Streaming toggle */}
-        <label className="flex items-center gap-2 mb-3 px-2 text-xs text-dash-muted cursor-pointer">
+        <label className="flex items-center gap-2 mb-2 px-2 text-xs text-dash-muted cursor-pointer">
           <input
             type="checkbox"
             checked={useStreaming}
@@ -254,6 +327,71 @@ export default function ChatPage() {
           />
           Stream responses
         </label>
+
+        {/* Voice Settings Toggle */}
+        <button
+          onClick={() => setShowVoiceSettings(!showVoiceSettings)}
+          className="flex items-center gap-2 mb-2 px-2 text-xs text-dash-muted hover:text-dash-text transition-colors"
+        >
+          <span>{showVoiceSettings ? "▼" : "▶"}</span>
+          <span>🔊 Voice Settings</span>
+          {tts.autoSpeak && <span className="text-green-400 text-[10px]">ON</span>}
+        </button>
+
+        {showVoiceSettings && (
+          <div className="mb-3 px-2 space-y-2 bg-dash-surface/50 rounded-lg p-2 border border-dash-border/50">
+            {/* Auto-speak toggle */}
+            <label className="flex items-center gap-2 text-xs text-dash-muted cursor-pointer">
+              <input
+                type="checkbox"
+                checked={tts.autoSpeak}
+                onChange={(e) => tts.setAutoSpeak(e.target.checked)}
+                className="rounded border-dash-border"
+              />
+              Auto-speak responses
+            </label>
+
+            {/* Voice selector */}
+            <div>
+              <label className="block text-[10px] text-dash-muted mb-1">Voice</label>
+              <select
+                value={tts.selectedVoice}
+                onChange={(e) => tts.setSelectedVoice(e.target.value)}
+                className="w-full bg-dash-surface border border-dash-border rounded px-2 py-1 text-[11px] text-dash-text focus:outline-none focus:border-dash-accent"
+              >
+                {tts.voices.map((v) => (
+                  <option key={v.voiceURI} value={v.name}>
+                    {v.name} ({v.lang})
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Speech rate */}
+            <div>
+              <label className="block text-[10px] text-dash-muted mb-1">
+                Speed: {tts.rate.toFixed(1)}x
+              </label>
+              <input
+                type="range"
+                min="0.5"
+                max="2"
+                step="0.1"
+                value={tts.rate}
+                onChange={(e) => tts.setRate(parseFloat(e.target.value))}
+                className="w-full h-1 accent-dash-accent"
+              />
+            </div>
+
+            {/* Test voice */}
+            <button
+              onClick={() => tts.speak("Hello! I'm your AI assistant. How can I help you today?")}
+              className="w-full px-2 py-1 text-[10px] rounded bg-dash-accent/20 text-dash-accent hover:bg-dash-accent/30 transition-colors"
+            >
+              🔊 Test Voice
+            </button>
+          </div>
+        )}
 
         {/* Conversation list */}
         <div className="flex-1 overflow-y-auto space-y-1">
@@ -323,6 +461,11 @@ export default function ChatPage() {
                   </button>
                 ))}
               </div>
+              {stt.isSupported && (
+                <p className="text-dash-muted text-xs pt-2">
+                  🎙️ Voice chat available — click the mic button to talk
+                </p>
+              )}
             </div>
           </div>
         ) : (
@@ -331,12 +474,18 @@ export default function ChatPage() {
             <div className="flex-1 overflow-y-auto px-2 py-4 space-y-4">
               {messages.length === 0 && !streamingText && (
                 <p className="text-center text-dash-muted text-sm py-8">
-                  Start the conversation by typing a message below.
+                  Start the conversation by typing a message or clicking 🎙️ to talk.
                 </p>
               )}
 
               {messages.map((msg) => (
-                <MessageBubble key={msg.message_id} message={msg} />
+                <MessageBubble
+                  key={msg.message_id}
+                  message={msg}
+                  onSpeak={(text) => tts.speak(text)}
+                  isSpeaking={tts.isSpeaking}
+                  onStopSpeaking={tts.stopSpeaking}
+                />
               ))}
 
               {/* Streaming indicator */}
@@ -367,6 +516,34 @@ export default function ChatPage() {
               <div ref={messagesEndRef} />
             </div>
 
+            {/* Voice status bar */}
+            {stt.mode !== "off" && (
+              <div className="mx-2 mb-1 px-3 py-1.5 rounded-lg bg-dash-surface border border-dash-border flex items-center gap-2 text-xs">
+                <span className={`inline-block w-2 h-2 rounded-full ${
+                  stt.mode === "listening" || stt.mode === "auto" ? "bg-red-500 animate-pulse" :
+                  stt.mode === "paused" ? "bg-blue-500" : "bg-gray-500"
+                }`} />
+                <span className="text-dash-muted">
+                  {stt.mode === "listening" && "Listening…"}
+                  {stt.mode === "auto" && "🔄 Auto mode — speak naturally"}
+                  {stt.mode === "paused" && "⏸️ Agent speaking…"}
+                </span>
+                {stt.interimTranscript && (
+                  <span className="text-dash-text-dim italic truncate flex-1">
+                    {stt.interimTranscript}
+                  </span>
+                )}
+                {tts.isSpeaking && (
+                  <button
+                    onClick={tts.stopSpeaking}
+                    className="text-dash-error hover:text-dash-error/80 text-[10px]"
+                  >
+                    Stop speaking
+                  </button>
+                )}
+              </div>
+            )}
+
             {/* Error banner */}
             {error && (
               <div className="mx-2 mb-2 px-4 py-2 bg-dash-error/10 border border-dash-error/30 rounded-lg text-sm text-dash-error flex items-center justify-between">
@@ -379,13 +556,43 @@ export default function ChatPage() {
 
             {/* Input area */}
             <div className="border-t border-dash-border p-3">
-              <div className="flex gap-2">
+              <div className="flex gap-2 items-end">
+                {/* Mic button */}
+                {stt.isSupported && (
+                  <div className="flex flex-col gap-1">
+                    <button
+                      onClick={stt.toggleListening}
+                      title={stt.mode === "off" ? "Click to talk (push-to-talk)" : "Stop listening"}
+                      className={`w-10 h-10 rounded-xl flex items-center justify-center text-lg transition-all ${micStyle.bg} ${micStyle.ring} hover:opacity-80`}
+                    >
+                      {micStyle.label}
+                    </button>
+                    {/* Auto mode toggle */}
+                    <button
+                      onClick={stt.toggleAuto}
+                      title={stt.mode === "auto" ? "Stop auto mode" : "Start hands-free mode"}
+                      className={`w-10 h-5 rounded text-[8px] font-bold transition-all ${
+                        stt.mode === "auto"
+                          ? "bg-green-500/30 text-green-400 border border-green-500"
+                          : "bg-dash-surface border border-dash-border text-dash-muted hover:text-dash-text"
+                      }`}
+                    >
+                      AUTO
+                    </button>
+                  </div>
+                )}
+
+                {/* Text input */}
                 <textarea
                   ref={inputRef}
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
                   onKeyDown={handleKeyDown}
-                  placeholder="Type a message… (Enter to send, Shift+Enter for newline)"
+                  placeholder={
+                    stt.mode !== "off"
+                      ? "Listening… (or type here)"
+                      : "Type a message… (Enter to send, Shift+Enter for newline)"
+                  }
                   disabled={sending}
                   rows={1}
                   className="flex-1 bg-dash-surface border border-dash-border rounded-xl px-4 py-3 text-sm text-dash-text placeholder:text-dash-muted/50 focus:outline-none focus:border-dash-accent resize-none transition-colors disabled:opacity-50"
@@ -396,6 +603,8 @@ export default function ChatPage() {
                     target.style.height = Math.min(target.scrollHeight, 120) + "px";
                   }}
                 />
+
+                {/* Send / Stop button */}
                 {sending ? (
                   <button
                     onClick={handleStop}
@@ -421,7 +630,17 @@ export default function ChatPage() {
   );
 }
 
-function MessageBubble({ message }: { message: ConversationMessage }) {
+function MessageBubble({
+  message,
+  onSpeak,
+  isSpeaking,
+  onStopSpeaking,
+}: {
+  message: ConversationMessage;
+  onSpeak: (text: string) => void;
+  isSpeaking: boolean;
+  onStopSpeaking: () => void;
+}) {
   const isUser = message.role === "user";
 
   return (
@@ -436,13 +655,23 @@ function MessageBubble({ message }: { message: ConversationMessage }) {
         {isUser ? "You" : "AI"}
       </div>
       <div
-        className={`max-w-[75%] rounded-xl px-4 py-3 text-sm whitespace-pre-wrap ${
+        className={`max-w-[75%] rounded-xl px-4 py-3 text-sm whitespace-pre-wrap group relative ${
           isUser
             ? "bg-dash-accent/20 text-dash-text"
             : "bg-dash-surface border border-dash-border text-dash-text"
         }`}
       >
         {message.content}
+        {/* Speak button for assistant messages */}
+        {!isUser && message.content && (
+          <button
+            onClick={() => isSpeaking ? onStopSpeaking() : onSpeak(message.content)}
+            className="absolute -bottom-1 -right-1 opacity-0 group-hover:opacity-100 w-6 h-6 rounded-full bg-dash-surface border border-dash-border flex items-center justify-center text-[10px] hover:bg-dash-accent/20 transition-all"
+            title={isSpeaking ? "Stop speaking" : "Speak this message"}
+          >
+            {isSpeaking ? "⏹" : "🔊"}
+          </button>
+        )}
       </div>
     </div>
   );
