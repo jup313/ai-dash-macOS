@@ -262,10 +262,26 @@ async def fetch_fleet_context(query: str) -> str | None:
                 "search music", "search song", "find song", "find music",
             ]
             if any(kw in query_lower for kw in music_keywords):
-                # Get music DB stats
+                # Get music DB stats — auto-sync if DB is empty
                 stats_resp = await client.get(f"{FLEET_BASE}/api/fleet/music/stats")
                 if stats_resp.status_code == 200:
-                    sections.append(f"Music Database Stats: {json.dumps(stats_resp.json(), indent=2)}")
+                    stats_data = stats_resp.json()
+                    if stats_data.get("total_tracks", 0) == 0:
+                        # Auto-sync from Plex when DB is empty
+                        logger.info("Music DB is empty — auto-syncing from Plex...")
+                        sync_resp = await client.post(
+                            f"{FLEET_BASE}/api/fleet/music/sync",
+                            json={},
+                            timeout=120.0,
+                        )
+                        if sync_resp.status_code == 200:
+                            sync_data = sync_resp.json()
+                            sections.append(f"Music DB Auto-Synced: {json.dumps(sync_data, indent=2)}")
+                        # Re-fetch stats after sync
+                        stats_resp = await client.get(f"{FLEET_BASE}/api/fleet/music/stats")
+                        if stats_resp.status_code == 200:
+                            stats_data = stats_resp.json()
+                    sections.append(f"Music Database Stats: {json.dumps(stats_data, indent=2)}")
 
                 # If searching for a specific song/track
                 if any(kw in query_lower for kw in ["search", "find", "look up", "looking for"]):
