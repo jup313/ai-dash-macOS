@@ -6,6 +6,7 @@ import LLMPage from "./pages/LLMPage";
 import AgentsPage from "./pages/AgentsPage";
 import CodingPage from "./pages/CodingPage";
 import AutomationPage from "./pages/AutomationPage";
+import DevicesPage from "./pages/DevicesPage";
 
 export default function App() {
   return (
@@ -17,6 +18,7 @@ export default function App() {
         <Route path="/agents" element={<AgentsPage />} />
         <Route path="/coding" element={<CodingPage />} />
         <Route path="/automation" element={<AutomationPage />} />
+        <Route path="/devices" element={<DevicesPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>
     </Routes>

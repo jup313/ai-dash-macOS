@@ -7,6 +7,7 @@ const NAV_ITEMS = [
   { to: "/agents", label: "Agents", icon: "◈" },
   { to: "/coding", label: "Coding", icon: "⟨⟩" },
   { to: "/automation", label: "Automation", icon: "⟳" },
+  { to: "/devices", label: "Devices", icon: "📡" },
 ];
 
 function SidebarLink({ to, label, icon }: { to: string; label: string; icon: string }) {

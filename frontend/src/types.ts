@@ -225,3 +225,44 @@ export interface ConversationDetail {
   created_at: string;
   updated_at: string;
 }
+
+// ── Fleet ─────────────────────────────────────────────────────────────────────
+
+export interface FleetDevice {
+  name: string;
+  type: string;
+  host: string;
+  status: "online" | "offline" | "unconfigured";
+  detail?: string;
+}
+
+export interface FleetStatus {
+  status: string;
+  summary: string;
+  online: number;
+  total: number;
+  devices: FleetDevice[];
+}
+
+export interface FleetDeviceList {
+  devices: Array<{
+    name: string;
+    type: string;
+    host: string;
+    configured: boolean;
+  }>;
+}
+
+export interface FleetLocalInfo {
+  hostname: string;
+  software: string;
+  uptime: string;
+  chip: string;
+}
+
+export interface FleetHealth {
+  status: string;
+  server: string;
+  version: string;
+  activeSessions: number;
+}

@@ -9,6 +9,10 @@ import type {
   ConversationSummary,
   ExecutorStatus,
   FileInfo,
+  FleetDeviceList,
+  FleetHealth,
+  FleetLocalInfo,
+  FleetStatus,
   HealthResponse,
   LLMConfig,
   LLMConfigUpdate,
@@ -201,6 +205,13 @@ export async function updateN8nConfig(config: {
   if (!res.ok) throw new Error(`Update n8n config: ${res.status}`);
   return res.json();
 }
+
+// ── Fleet ─────────────────────────────────────────────────────────────────────
+
+export const fetchFleetStatus = () => get<FleetStatus>("/api/fleet/status");
+export const fetchFleetDevices = () => get<FleetDeviceList>("/api/fleet/devices");
+export const fetchFleetHealth = () => get<FleetHealth>("/api/fleet/health");
+export const fetchFleetLocalInfo = () => get<FleetLocalInfo>("/api/fleet/local/info");
 
 // ── Coding ────────────────────────────────────────────────────────────────────
 
