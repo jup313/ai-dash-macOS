@@ -20,6 +20,7 @@ from backend.app.api.conversations import router as conversations_router
 from backend.app.api.health import router as health_router
 from backend.app.api.fleet import router as fleet_router
 from backend.app.api.llm import router as llm_router
+from backend.app.api.personalities import router as personalities_router
 from backend.app.agents.executor import reset_executor
 from backend.app.agents.registry import reset_registry
 from backend.app.automation.engine import reset_engine
@@ -91,6 +92,7 @@ def create_app() -> FastAPI:
     application.include_router(coding_router)
     application.include_router(automation_router)
     application.include_router(fleet_router)
+    application.include_router(personalities_router)
 
     return application
 

@@ -5,6 +5,7 @@ import {
   fetchAgents,
   fetchLLMConfig,
   fetchModels,
+  fetchPersonalities,
   createConversation,
   deleteConversation,
   sendChatMessage,
@@ -16,6 +17,7 @@ import type {
   ConversationMessage,
   LLMConfig,
   ModelInfo,
+  Personality,
 } from "../types";
 import { useSpeechRecognition, type MicMode } from "../hooks/useSpeechRecognition";
 import { useSpeechSynthesis } from "../hooks/useSpeechSynthesis";
@@ -41,6 +43,11 @@ export default function ChatPage() {
   const [loadingModels, setLoadingModels] = useState(false);
   const [useStreaming, setUseStreaming] = useState(true);
   const [showVoiceSettings, setShowVoiceSettings] = useState(false);
+
+  // Personality state
+  const [personalities, setPersonalities] = useState<Personality[]>([]);
+  const [selectedPersonality, setSelectedPersonality] = useState<string>("default");
+  const [showPersonalities, setShowPersonalities] = useState(true);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -90,10 +97,11 @@ export default function ChatPage() {
     }
   }); // intentionally no deps — checks every render
 
-  // Load conversations, agents, config on mount
+  // Load conversations, agents, config, personalities on mount
   useEffect(() => {
     fetchConversations().then(setConversations).catch(() => {});
     fetchAgents().then(setAgents).catch(() => {});
+    fetchPersonalities().then(setPersonalities).catch(() => {});
     fetchLLMConfig()
       .then((cfg) => {
         setLlmConfig(cfg);
@@ -103,6 +111,22 @@ export default function ChatPage() {
       })
       .catch(() => {});
   }, []);
+
+  // Handle personality change — auto-set recommended TTS voice
+  const handlePersonalityChange = useCallback((personalityId: string) => {
+    setSelectedPersonality(personalityId);
+    const p = personalities.find((x) => x.id === personalityId);
+    if (p?.recommended_voice && tts.voices.length > 0) {
+      const voiceExists = tts.voices.some((v) => v.name.includes(p.recommended_voice));
+      if (voiceExists) {
+        const match = tts.voices.find((v) => v.name.includes(p.recommended_voice));
+        if (match) tts.setSelectedVoice(match.name);
+      }
+    }
+  }, [personalities, tts.voices, tts.setSelectedVoice]);
+
+  // Get current personality info
+  const currentPersonality = personalities.find((p) => p.id === selectedPersonality);
 
   // Fetch available models when config loads
   useEffect(() => {
@@ -180,7 +204,7 @@ export default function ChatPage() {
         let fullResponse = "";
         const controller = streamChatMessage(
           activeConvId,
-          { content: userMessage, agent: selectedAgent, model: selectedModel || undefined },
+          { content: userMessage, agent: selectedAgent, model: selectedModel || undefined, personality: selectedPersonality || undefined },
           (chunk) => {
             fullResponse += chunk;
             setStreamingText((prev) => prev + chunk);
@@ -207,6 +231,7 @@ export default function ChatPage() {
           content: userMessage,
           agent: selectedAgent,
           model: selectedModel || undefined,
+          personality: selectedPersonality || undefined,
         });
         const updated = await fetchMessages(activeConvId);
         setMessages(updated);
@@ -327,6 +352,55 @@ export default function ChatPage() {
           />
           Stream responses
         </label>
+
+        {/* Personality Selector */}
+        {personalities.length > 0 && (
+          <>
+            <button
+              onClick={() => setShowPersonalities(!showPersonalities)}
+              className="flex items-center gap-2 mb-2 px-2 text-xs text-dash-muted hover:text-dash-text transition-colors"
+            >
+              <span>{showPersonalities ? "▼" : "▶"}</span>
+              <span>🎭 Personality</span>
+              {currentPersonality && (
+                <span className="text-dash-text text-[10px]">
+                  {currentPersonality.emoji} {currentPersonality.name}
+                </span>
+              )}
+            </button>
+
+            {showPersonalities && (
+              <div className="mb-3 px-1">
+                <div className="grid grid-cols-5 gap-1">
+                  {personalities.map((p) => (
+                    <button
+                      key={p.id}
+                      onClick={() => handlePersonalityChange(p.id)}
+                      title={`${p.name} — ${p.description}`}
+                      className={`w-full aspect-square rounded-lg flex items-center justify-center text-lg transition-all hover:scale-110 ${
+                        selectedPersonality === p.id
+                          ? "bg-dash-accent/30 ring-2 ring-dash-accent shadow-lg"
+                          : "bg-dash-surface border border-dash-border/50 hover:border-dash-accent/50"
+                      }`}
+                    >
+                      {p.emoji}
+                    </button>
+                  ))}
+                </div>
+                {currentPersonality && (
+                  <div className="mt-1.5 px-1">
+                    <div className="text-[11px] text-dash-text font-medium">
+                      {currentPersonality.emoji} {currentPersonality.name}
+                    </div>
+                    <div className="text-[10px] text-dash-muted">
+                      {currentPersonality.description}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </>
+        )}
 
         {/* Voice Settings Toggle */}
         <button

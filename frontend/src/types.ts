@@ -191,6 +191,17 @@ export interface MemoryStats {
   total_tokens: number;
 }
 
+// ── Personalities ─────────────────────────────────────────────────────────────
+
+export interface Personality {
+  id: string;
+  name: string;
+  emoji: string;
+  description: string;
+  system_prompt: string;
+  recommended_voice: string;
+}
+
 // ── Chat ──────────────────────────────────────────────────────────────────────
 
 export interface ChatMessageRequest {
@@ -199,6 +210,7 @@ export interface ChatMessageRequest {
   model?: string;
   provider?: string;
   stream?: boolean;
+  personality?: string;
 }
 
 export interface ChatMessageResponse {

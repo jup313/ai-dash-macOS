@@ -22,6 +22,7 @@ import type {
   N8nExecution,
   N8nStatus,
   N8nWorkflow,
+  Personality,
   RouterStatus,
   SchedulerStatus,
   WorkflowInfo,
@@ -205,6 +206,10 @@ export async function updateN8nConfig(config: {
   if (!res.ok) throw new Error(`Update n8n config: ${res.status}`);
   return res.json();
 }
+
+// ── Personalities ─────────────────────────────────────────────────────────────
+
+export const fetchPersonalities = () => get<Personality[]>("/api/personalities/");
 
 // ── Fleet ─────────────────────────────────────────────────────────────────────
 

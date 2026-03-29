@@ -14,6 +14,7 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
 from backend.app.agents.registry import get_registry
+from backend.app.api.personalities import get_personality
 from backend.app.llm.base import ProviderError, ProviderUnavailableError
 from backend.app.llm.models import ChatRequest, Message, Role, StreamChunk
 from backend.app.llm.router import get_router
@@ -41,6 +42,7 @@ class ChatMessageRequest(BaseModel):
     model: str | None = Field(default=None, description="Model override")
     provider: str | None = Field(default=None, description="Provider override")
     stream: bool = Field(default=False, description="Enable streaming response")
+    personality: str | None = Field(default=None, description="Personality preset ID")
 
 
 @router.post("/", response_model=Conversation)
@@ -145,7 +147,7 @@ async def chat_in_conversation(
     # 1. Store user message
     store.add_message(conversation_id, role="user", content=request.content)
 
-    # 2. Build system prompt from agent
+    # 2. Build system prompt from agent + personality
     system_prompt = "You are a helpful AI assistant running locally on macOS Apple Silicon."
     registry = get_registry()
     agent_info_list = registry.list_agents()
@@ -153,6 +155,12 @@ async def chat_in_conversation(
         if a.name == (request.agent or conv.agent_name):
             system_prompt = a.system_prompt
             break
+
+    # Apply personality overlay if specified
+    if request.personality:
+        personality = get_personality(request.personality)
+        if personality:
+            system_prompt = f"{personality.system_prompt}\n\n{system_prompt}"
 
     # 3. Build messages from conversation history
     history = store.get_messages(conversation_id, limit=50)
