@@ -88,38 +88,68 @@ async def fetch_fleet_context(query: str) -> str | None:
                 "gateway", "access point", "switch",
             ]
             if any(kw in query_lower for kw in unifi_keywords):
-                # System info
                 sys_resp = await client.get(f"{FLEET_BASE}/api/fleet/unifi/system")
                 if sys_resp.status_code == 200:
                     sections.append(f"UniFi System: {json.dumps(sys_resp.json(), indent=2)}")
 
-                # Network health
                 health_resp = await client.get(f"{FLEET_BASE}/api/fleet/unifi/health")
                 if health_resp.status_code == 200:
                     sections.append(f"Network Health: {json.dumps(health_resp.json(), indent=2)}")
 
-                # WAN/internet status
                 if any(kw in query_lower for kw in ["wan", "internet", "uplink", "connection"]):
                     wan_resp = await client.get(f"{FLEET_BASE}/api/fleet/unifi/wan")
                     if wan_resp.status_code == 200:
                         sections.append(f"WAN Status: {json.dumps(wan_resp.json(), indent=2)}")
 
-                # Connected clients
                 if any(kw in query_lower for kw in ["client", "connected", "device"]):
                     clients_resp = await client.get(f"{FLEET_BASE}/api/fleet/unifi/clients")
                     if clients_resp.status_code == 200:
                         sections.append(f"Connected Clients: {json.dumps(clients_resp.json(), indent=2)}")
 
-                # Network devices (APs, switches)
                 devices_resp = await client.get(f"{FLEET_BASE}/api/fleet/unifi/devices")
                 if devices_resp.status_code == 200:
                     sections.append(f"UniFi Devices: {json.dumps(devices_resp.json(), indent=2)}")
 
-                # WiFi networks
                 if any(kw in query_lower for kw in ["wifi", "ssid", "wireless"]):
                     wifi_resp = await client.get(f"{FLEET_BASE}/api/fleet/unifi/wifi")
                     if wifi_resp.status_code == 200:
                         sections.append(f"WiFi Networks: {json.dumps(wifi_resp.json(), indent=2)}")
+
+            # Sonos-specific queries
+            sonos_keywords = [
+                "sonos", "speaker", "music", "playing", "volume",
+                "song", "track", "playlist", "favorite", "soundbar",
+                "beam", "play", "pause", "mute",
+            ]
+            if any(kw in query_lower for kw in sonos_keywords):
+                discover_resp = await client.get(f"{FLEET_BASE}/api/fleet/sonos/discover")
+                if discover_resp.status_code == 200:
+                    sections.append(f"Sonos Speakers: {json.dumps(discover_resp.json(), indent=2)}")
+
+                if any(kw in query_lower for kw in ["favorite", "playlist"]):
+                    favs_resp = await client.get(f"{FLEET_BASE}/api/fleet/sonos/favorites")
+                    if favs_resp.status_code == 200:
+                        sections.append(f"Sonos Favorites: {json.dumps(favs_resp.json(), indent=2)}")
+
+            # Alexa-specific queries
+            alexa_keywords = [
+                "alexa", "echo", "amazon", "smart home", "routine",
+                "fire tv", "do not disturb", "dnd",
+            ]
+            if any(kw in query_lower for kw in alexa_keywords):
+                devices_resp = await client.get(f"{FLEET_BASE}/api/fleet/alexa/devices")
+                if devices_resp.status_code == 200:
+                    sections.append(f"Alexa Devices: {json.dumps(devices_resp.json(), indent=2)}")
+
+                if any(kw in query_lower for kw in ["smart home", "light", "plug", "thermostat"]):
+                    sh_resp = await client.get(f"{FLEET_BASE}/api/fleet/alexa/smart-home")
+                    if sh_resp.status_code == 200:
+                        sections.append(f"Smart Home Devices: {json.dumps(sh_resp.json(), indent=2)}")
+
+                if "routine" in query_lower:
+                    routines_resp = await client.get(f"{FLEET_BASE}/api/fleet/alexa/routines")
+                    if routines_resp.status_code == 200:
+                        sections.append(f"Alexa Routines: {json.dumps(routines_resp.json(), indent=2)}")
 
             # Local Mac queries
             mac_keywords = ["local mac", "this mac", "my mac", "cpu", "memory", "disk", "battery"]
@@ -170,6 +200,11 @@ FLEET_KEYWORDS = [
     "local mac", "this mac", "my mac", "cpu usage", "memory usage",
     "disk usage", "battery", "server", "remote", "mac mini", "rocky",
     "status", "online", "offline", "uptime",
+    # Sonos
+    "sonos", "speaker", "music", "playing", "volume", "song", "track",
+    "playlist", "favorite", "soundbar", "beam",
+    # Alexa
+    "alexa", "echo", "amazon", "smart home", "routine", "fire tv",
 ]
 
 
@@ -270,6 +305,72 @@ async def unifi_wan():
 async def unifi_wifi():
     """List WiFi networks configured on UniFi."""
     return await _proxy_get("/api/fleet/unifi/wifi")
+
+
+# ── Sonos Speakers ────────────────────────────────────────────────────────────
+
+
+@router.get("/sonos/discover")
+async def sonos_discover():
+    """Discover Sonos speakers and their current state."""
+    return await _proxy_get("/api/fleet/sonos/discover")
+
+
+@router.get("/sonos/favorites")
+async def sonos_favorites():
+    """List Sonos favorites."""
+    return await _proxy_get("/api/fleet/sonos/favorites")
+
+
+@router.post("/sonos/play")
+async def sonos_play(body: dict):
+    """Play/resume on a Sonos speaker. Body: {room, uri?}"""
+    return await _proxy_post("/api/fleet/sonos/play", body)
+
+
+@router.post("/sonos/pause")
+async def sonos_pause(body: dict):
+    """Pause a Sonos speaker. Body: {room}"""
+    return await _proxy_post("/api/fleet/sonos/pause", body)
+
+
+@router.post("/sonos/volume")
+async def sonos_volume(body: dict):
+    """Get/set Sonos volume. Body: {room, level?}"""
+    return await _proxy_post("/api/fleet/sonos/volume", body)
+
+
+@router.post("/sonos/play-favorite")
+async def sonos_play_favorite(body: dict):
+    """Play a Sonos favorite. Body: {room, favorite}"""
+    return await _proxy_post("/api/fleet/sonos/play-favorite", body)
+
+
+# ── Alexa Devices ─────────────────────────────────────────────────────────────
+
+
+@router.get("/alexa/devices")
+async def alexa_devices():
+    """List Alexa devices."""
+    return await _proxy_get("/api/fleet/alexa/devices")
+
+
+@router.get("/alexa/smart-home")
+async def alexa_smart_home():
+    """List Alexa smart home devices."""
+    return await _proxy_get("/api/fleet/alexa/smart-home")
+
+
+@router.post("/alexa/speak")
+async def alexa_speak(body: dict):
+    """Make Alexa speak. Body: {serialNumber, text}"""
+    return await _proxy_post("/api/fleet/alexa/speak", body)
+
+
+@router.get("/alexa/routines")
+async def alexa_routines():
+    """List Alexa routines."""
+    return await _proxy_get("/api/fleet/alexa/routines")
 
 
 # ── Remote Devices ────────────────────────────────────────────────────────────
