@@ -14,6 +14,7 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
 from backend.app.agents.registry import get_registry
+from backend.app.api.fleet import fetch_fleet_context, is_fleet_query
 from backend.app.api.personalities import get_personality
 from backend.app.llm.base import ProviderError, ProviderUnavailableError
 from backend.app.llm.models import ChatRequest, Message, Role, StreamChunk
@@ -161,6 +162,14 @@ async def chat_in_conversation(
         personality = get_personality(request.personality)
         if personality:
             system_prompt = f"{personality.system_prompt}\n\n{system_prompt}"
+
+    # 2b. Auto-inject fleet context for device/network queries
+    fleet_context: str | None = None
+    if is_fleet_query(request.content):
+        logger.info("Fleet query detected, fetching live data for: %s", request.content[:80])
+        fleet_context = await fetch_fleet_context(request.content)
+        if fleet_context:
+            system_prompt = f"{system_prompt}\n\n{fleet_context}"
 
     # 3. Build messages from conversation history
     history = store.get_messages(conversation_id, limit=50)
